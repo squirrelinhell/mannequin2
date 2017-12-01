@@ -1,0 +1,146 @@
+#!/bin/bash
+
+INFO='
+Generate code variants based on formatted comments, e.g.:
+
+x = 0 ### 0 / 1 / 2
+y = x + 1 ### x + 1 / x * x
+
+Usage:
+    code-variants [ ... options ... ] <source file> [ <output dir> ]
+
+Options:
+    --run              Execute generated files in parallel
+    --copies <n>       Create identical copies of each variant
+'
+
+COPIES=
+RUN=0
+
+while [ "x${1::2}" = x-- ]; do
+    case "x$1" in
+        x--run) RUN=1 ;;
+        x--copies)
+            shift
+            COPIES="$(seq -w $1)" || exit 1
+        ;;
+        *)
+            echo "$INFO" 1>&2
+            exit 1
+        ;;
+    esac
+    shift
+done
+
+INPUT_FILE="$1"
+OUTPUT_DIR="${2:-variants}"
+
+if [ "x$INPUT_FILE" = x ]; then
+    echo "$INFO" 1>&2
+    exit 1
+fi
+
+SOURCES=( "" )
+LABELS=( "" )
+
+trim() {
+    local v="${1#"${1%%[![:space:]]*}"}"
+    v="${v%"${v##*[![:space:]]}"}"
+    echo -n "$v"
+}
+
+add_branch() {
+    IFS='/' read -r -a options <<< "$2"
+    if [ "${#options[@]}" -lt 2 ]; then
+        echo "Error: invalid format: '$2'" 1>&2
+        exit 1
+    fi
+    REPLACE=
+    for option in "${options[@]}"; do
+        option=$(trim "$option")
+        if [ "x${1/$option}" != "x$1" ]; then
+            if [ ${#option} -gt ${#REPLACE} ]; then
+                REPLACE="$option"
+            fi
+        fi
+    done
+    if [ "x$REPLACE" = x ]; then
+        echo "Error: variants not found in line: '$2'" 1>&2
+        exit 1
+    fi
+    NEW_SOURCES=()
+    for source in "${SOURCES[@]}"; do
+        for option in "${options[@]}"; do
+            option=$(trim "$option")
+            NEW_SOURCES+=( "$source${1/$REPLACE/$option}"$'\n' )
+        done
+    done
+    SOURCES=( "${NEW_SOURCES[@]}" )
+    NEW_LABELS=()
+    for label in "${LABELS[@]}"; do
+        for option in "${options[@]}"; do
+            NEW_LABELS+=( "${label}_$(echo ${option//[^a-zA-Z0-9_.-]/})" )
+        done
+    done
+    LABELS=( "${NEW_LABELS[@]/#_/}" )
+}
+
+while IFS='' read -r line; do
+    COMMENT="${line##*###}"
+    if [ "x$COMMENT" != "x$line" ]; then
+        if add_branch "${line%###*}" "$COMMENT"; then
+            continue
+        fi
+    fi
+    line="$line"$'\n'
+    SOURCES=( "${SOURCES[@]/%/$line}" )
+done < "$INPUT_FILE"
+
+if [ "x$COPIES" != x ]; then
+    NEW_SOURCES=()
+    for source in "${SOURCES[@]}"; do
+        for copy in $COPIES; do
+            NEW_SOURCES+=( "$source" )
+        done
+    done
+    SOURCES=( "${NEW_SOURCES[@]}" )
+    NEW_LABELS=()
+    for label in "${LABELS[@]}"; do
+        for copy in $COPIES; do
+            NEW_LABELS+=( "${label}_copy$copy" )
+        done
+    done
+    LABELS=( "${NEW_LABELS[@]/#_/}" )
+fi
+
+if [ "${#SOURCES[@]}" -lt 2 ]; then
+    echo "Error: no variants found in '$INPUT_FILE'" 1>&2
+    exit 1
+fi
+
+mkdir -p "$OUTPUT_DIR" || exit 1
+
+for id in "${!SOURCES[@]}"; do
+    OUTPUT_FILE="$OUTPUT_DIR/${LABELS[$id]}"
+    echo "${SOURCES[$id]}" > "$OUTPUT_FILE" || exit 1
+    chmod "$OUTPUT_FILE" --reference="$INPUT_FILE"
+done
+
+[ "x$RUN" = x1 ] || exit 0
+
+TMPDIR=$(mktemp -d) || exit 1
+trap "rm -rf $TMPDIR" EXIT
+
+echo '
+all: $(patsubst %,'"$OUTPUT_DIR"'/%.out, '"${LABELS[@]}"')
+
+'"$OUTPUT_DIR"'/%.out:
+'$'\t''@echo Running variant: $*...
+'$'\t''@chmod +x '"$OUTPUT_DIR"'/$*
+'$'\t''@'"$OUTPUT_DIR"'/$* > '"$TMPDIR"'/$*.out
+'$'\t''@cp '"$TMPDIR"'/$*.out $@
+' > "$TMPDIR/makefile"
+
+NUM_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
+echo "Max threads: $NUM_THREADS" 1>&2
+make -f "$TMPDIR/makefile" -j "$NUM_THREADS" || exit 1

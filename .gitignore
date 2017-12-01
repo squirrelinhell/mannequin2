@@ -1,0 +1,7 @@
+__*
+!__init__.py
+*.py[cod]
+*$py.class
+.ipynb_checkpoints
+*.png
+*.log
