@@ -48,10 +48,16 @@ class RunningNormalize(object):
             d1 = value - r_mean.get()
             d2 = value - r_mean(np.mean(value, axis=0))
 
-            n_samples += len(value)
-            if n_samples >= 2:
+            if n_samples >= 1:
                 r_var.update(np.mean(np.multiply(d1, d2), axis=0))
+            elif len(value) >= 2:
+                weight = (len(value) - 1.0) / len(value)
+                r_var.update(
+                    np.mean(np.multiply(d1, d2), axis=0) / weight,
+                    weight=weight
+                )
 
+            n_samples += len(value)
 
         def apply(value):
             if n_samples < 2:
