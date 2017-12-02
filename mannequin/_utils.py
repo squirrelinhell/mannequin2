@@ -1,25 +1,30 @@
 
 class RunningMean(object):
-    def __init__(self, shape=(), *, horizon):
+    def __init__(self, shape=(), *, horizon=None):
         import numpy as np
 
-        discount = 1.0 - 1.0 / float(horizon)
-        assert (discount > 0.0) and (discount <= 0.999999)
-
         mean = np.zeros(shape, dtype=np.float64)
-        missing_weight = 1.0
+        total_weight = 0.0
 
         def update(values, *, weight=1.0):
-            nonlocal mean, missing_weight
+            nonlocal mean, total_weight
 
             values = np.asarray(values, dtype=np.float64)
             values = values.reshape(shape)
 
-            cur_discount = np.power(discount, weight)
-            missing_weight *= cur_discount
-            mean += (1.0 - cur_discount) * (values - mean)
+            weight = float(weight)
+            assert weight >= 0.0
 
-        self.get = lambda: mean * (1.0 / (1.0 - missing_weight))
+            if horizon is not None:
+                total_weight *= np.power(
+                    1.0 - 1.0 / float(horizon),
+                    weight
+                )
+
+            total_weight += weight
+            mean += (weight / total_weight) * (values - mean)
+
+        self.get = lambda: np.array(mean)
         self.update = update
 
     def __call__(self, values, **kwargs):
@@ -27,19 +32,30 @@ class RunningMean(object):
         return self.get()
 
 class RunningNormalize(object):
-    def __init__(self, shape=(), *, horizon):
+    def __init__(self, shape=(), *, horizon=None):
         import numpy as np
 
         r_mean = RunningMean(shape=shape, horizon=horizon)
         r_var = RunningMean(shape=shape, horizon=horizon)
+        n_samples = 0
 
         def update(value):
+            nonlocal n_samples
+
             value = np.array(value, dtype=np.float64)
             value = value.reshape((-1,) + shape)
-            value -= r_mean(np.mean(value, axis=0))
-            r_var.update(np.mean(np.square(value), axis=0))
+
+            d1 = value - r_mean.get()
+            d2 = value - r_mean(np.mean(value, axis=0))
+
+            n_samples += len(value)
+            if n_samples >= 2:
+                r_var.update(np.mean(np.multiply(d1, d2), axis=0))
+
 
         def apply(value):
+            if n_samples < 2:
+                return np.zeros_like(value)
             return (
                 (value - r_mean.get())
                 / np.maximum(1e-8, np.sqrt(r_var.get()))
@@ -47,6 +63,9 @@ class RunningNormalize(object):
 
         self.update = update
         self.apply = apply
+        self.get_mean = lambda: r_mean.get()
+        self.get_var = lambda: r_var.get()
+        self.get_std = lambda: np.sqrt(r_var.get())
 
     def __call__(self, value):
         self.update(value)
