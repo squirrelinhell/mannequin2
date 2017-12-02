@@ -11,8 +11,8 @@ class BaseTwoMoments:
         value = np.asarray(value, dtype=np.float32)
         value.setflags(write=False)
 
-        running_mean = RunningMean(horizon=horizon)
-        running_var = RunningMean(horizon=var_horizon)
+        running_mean = RunningMean(value.shape, horizon=horizon)
+        running_var = RunningMean(value.shape, horizon=var_horizon)
 
         def norm(v):
             return np.sqrt(np.sum(np.square(v)))

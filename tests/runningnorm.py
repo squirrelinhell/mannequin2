@@ -20,7 +20,9 @@ for i in range(10):
 print()
 n = RunningNormalize(horizon=5)
 n(10.0)
-for i in range(10):
-    print(np.round(n(-10.0), 3))
-for i in range(10):
-    print(np.round(n(10.0), 3))
+print(np.array([n(-10.0) for i in range(10)]))
+print(np.array([n(10.0) for i in range(10)]))
+
+print()
+n = RunningNormalize(horizon=5)
+print(np.array([n(np.arange(11) + i) for i in range(3)]))

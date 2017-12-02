@@ -1,39 +1,56 @@
 
 class RunningMean(object):
-    def __init__(self, *, horizon):
-        step = 1.0 / float(horizon)
-        assert (step > 0.0) and (step < 1.0)
-
-        biased_mean = 0.0
-        power = 1.0
-
-        def update(value):
-            nonlocal biased_mean, power
-
-            biased_mean += step * (value - biased_mean)
-            power *= 1.0 - step
-
-        self.get = lambda: biased_mean / (1.0 - power)
-        self.update = update
-
-class RunningNormalize(object):
-    def __init__(self, *, horizon):
+    def __init__(self, shape=(), *, horizon):
         import numpy as np
 
-        mean = RunningMean(horizon=horizon)
-        var = RunningMean(horizon=horizon)
+        discount = 1.0 - 1.0 / float(horizon)
+        assert (discount > 0.0) and (discount <= 0.999999)
 
-        def normalize(value):
-            value = np.array(value, dtype=np.float32)
-            mean.update(np.mean(value))
-            value -= mean.get()
-            var.update(np.mean(np.square(value)))
-            return value / max(1e-8, np.sqrt(var.get()))
+        mean = np.zeros(shape, dtype=np.float64)
+        missing_weight = 1.0
 
-        self.normalize = normalize
+        def update(values, *, weight=1.0):
+            nonlocal mean, missing_weight
+
+            values = np.asarray(values, dtype=np.float64)
+            values = values.reshape(shape)
+
+            cur_discount = np.power(discount, weight)
+            missing_weight *= cur_discount
+            mean += (1.0 - cur_discount) * (values - mean)
+
+        self.get = lambda: mean * (1.0 / (1.0 - missing_weight))
+        self.update = update
+
+    def __call__(self, values, **kwargs):
+        self.update(values, **kwargs)
+        return self.get()
+
+class RunningNormalize(object):
+    def __init__(self, shape=(), *, horizon):
+        import numpy as np
+
+        r_mean = RunningMean(shape=shape, horizon=horizon)
+        r_var = RunningMean(shape=shape, horizon=horizon)
+
+        def update(value):
+            value = np.array(value, dtype=np.float64)
+            value = value.reshape((-1,) + shape)
+            value -= r_mean(np.mean(value, axis=0))
+            r_var.update(np.mean(np.square(value), axis=0))
+
+        def apply(value):
+            return (
+                (value - r_mean.get())
+                / np.maximum(1e-8, np.sqrt(r_var.get()))
+            )
+
+        self.update = update
+        self.apply = apply
 
     def __call__(self, value):
-        return self.normalize(value)
+        self.update(value)
+        return self.apply(value)
 
 def discounted_rewards(rewards, *, horizon):
     import numpy as np

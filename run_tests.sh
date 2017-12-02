@@ -13,7 +13,7 @@ sys.excepthook = IPython.core.ultratb.FormattedTB(call_pdb=True)
 
 TEST_SETUP='
 import numpy as np
-np.set_printoptions(precision=3, suppress=True)
+np.set_printoptions(precision=3, linewidth=100, suppress=True)
 
 def timer():
     import time
