@@ -8,7 +8,7 @@ class BaseTwoMoments:
         import os
         from mannequin import RunningMean
 
-        value = np.asarray(value, dtype=np.float32)
+        value = np.asarray(value, dtype=np.float64)
         value.setflags(write=False)
 
         running_mean = RunningMean(value.shape, horizon=horizon)
@@ -20,7 +20,7 @@ class BaseTwoMoments:
         def apply_gradient(grad):
             nonlocal value
 
-            grad = np.asarray(grad)
+            grad = np.asarray(grad, dtype=np.float64)
             assert grad.shape == value.shape
 
             running_mean.update(grad)

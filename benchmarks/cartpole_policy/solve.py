@@ -27,8 +27,9 @@ def run():
     rng = np.random.RandomState()
     opt = Adams(
         rng.randn(model.n_params) * 0.1,
-        lr=0.00004,
-        horizon=5
+        lr=0.00005,
+        horizon=5,
+        epsilon=4e-8
     )
 
     def stochastic_policy(obs):
