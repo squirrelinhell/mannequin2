@@ -35,24 +35,20 @@ class RunningNormalize(object):
     def __call__(self, value):
         return self.normalize(value)
 
-def discount(traj, *, horizon):
+def discounted_rewards(rewards, *, horizon):
     import numpy as np
-    from mannequin import Trajectory
 
-    if isinstance(traj, Trajectory):
-        return traj.modify(
-            rewards=lambda rs: discount(rs, horizon=horizon)
-        )
+    step = 1.0 / float(horizon)
+    assert (step > 1e-6) and (step < 1.0)
 
-    multiplier = 1.0 - (1.0 / float(horizon))
+    rewards = np.array(rewards, dtype=np.float64)
     rew_sum = 0.0
-    output = np.array(traj, dtype=np.float32)
 
-    for i in range(len(output)-1, -1, -1):
-        rew_sum = rew_sum * multiplier + float(output[i])
-        output[i] = rew_sum
+    for i in range(len(rewards)-1, -1, -1):
+        rew_sum += step * (rewards[i] - rew_sum)
+        rewards[i] = rew_sum
 
-    return output
+    return rewards
 
 def bar(value, max_value=100.0, *, length=50):
     value = float(value)

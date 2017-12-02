@@ -30,7 +30,7 @@ class Trajectory(object):
         actions.setflags(write=False)
         rewards.setflags(write=False)
 
-        def modify(**kwargs):
+        def modified(**kwargs):
             data = {
                 "observations": observations,
                 "actions": actions,
@@ -40,12 +40,21 @@ class Trajectory(object):
                 data[v] = kwargs[v](data[v])
             return Trajectory(**data)
 
+        def discounted(*, horizon):
+            from mannequin import discounted_rewards
+            return Trajectory(
+                observations=observations,
+                actions=actions,
+                rewards=discounted_rewards(rewards, horizon=horizon)
+            )
+
         # Public methods
         self.get_length = lambda: length
         self.get_observations = lambda: observations[:]
         self.get_actions = lambda: actions[:]
         self.get_rewards = lambda: rewards[:]
-        self.modify = modify
+        self.modified = modified
+        self.discounted = discounted
 
     def __getattribute__(self, name):
         if name == "observations"[:len(name)]:

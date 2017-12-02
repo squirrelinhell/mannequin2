@@ -20,7 +20,7 @@ print(t.r)
 t = t.joined(t[0])
 print(t.r)
 
-t = t.modify(rewards=sum)
+t = t.modified(rewards=sum)
 print(t.r)
 
 assert timer() < 0.01

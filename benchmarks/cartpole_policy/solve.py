@@ -5,7 +5,7 @@ import numpy as np
 import gym
 
 sys.path.append("../..")
-from mannequin import Trajectory, discount, RunningNormalize, Adams
+from mannequin import Trajectory, RunningNormalize, Adams
 from mannequin.gym import ArgmaxActions, PrintRewards, episode
 from mannequin.basicnet import Input, Affine, LReLU
 
@@ -43,9 +43,9 @@ def run():
         model.load_params(opt.get_value())
         traj = episode(env, stochastic_policy)
 
-        traj = discount(traj, horizon=500)
-        traj = traj.modify(rewards=normalize)
-        traj = traj.modify(rewards=np.tanh)
+        traj = traj.discounted(horizon=500)
+        traj = traj.modified(rewards=normalize)
+        traj = traj.modified(rewards=np.tanh)
 
         model_outs, backprop = model.evaluate(traj.o)
         model_outs = softmax(model_outs)
