@@ -45,24 +45,27 @@ class PrintRewards(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
 
-        print("# episode reward", flush=True)
-        rew_sum = None
+        print("# episode step reward", flush=True)
         ep_number = 0
+        ep_rew = None
+        total_steps = 0
 
         def do_step(action):
-            nonlocal rew_sum
+            nonlocal ep_rew, total_steps
             obs, reward, done, info = self.env._step(action)
-            assert rew_sum is not None
-            rew_sum += reward
+            assert ep_rew is not None
+            total_steps += 1
+            ep_rew += reward
             if done:
-                print("%d %.4f" % (ep_number, rew_sum), flush=True)
-                rew_sum = None
+                print("%d %d %.4f"
+                    % (ep_number, total_steps, ep_rew), flush=True)
+                ep_rew = None
             return obs, reward, done, info
 
         def do_reset():
-            nonlocal rew_sum, ep_number
-            rew_sum = 0.0
+            nonlocal ep_number, ep_rew
             ep_number += 1
+            ep_rew = 0.0
             return self.env._reset()
 
         self._step = do_step

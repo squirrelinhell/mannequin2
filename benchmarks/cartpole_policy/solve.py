@@ -9,51 +9,64 @@ from mannequin import Trajectory, RunningNormalize, Adams
 from mannequin.gym import ArgmaxActions, PrintRewards, episode
 from mannequin.basicnet import Input, Affine, LReLU
 
-def softmax(v):
-    v = v.T
-    v = np.exp(v - np.amax(v, axis=0))
-    v /= np.sum(v, axis=0)
-    return v.T
+class Agent(object):
+    def __init__(self, env):
+        rng = np.random.RandomState()
+
+        model = Input(env.observation_space.low.size)
+        model = LReLU(Affine(model, 64))
+        model = Affine(model, env.action_space.low.size)
+
+        def softmax(v):
+            v = v.T
+            v = np.exp(v - np.amax(v, axis=0))
+            v /= np.sum(v, axis=0)
+            return v.T
+
+        def policy(obs):
+            outs, backprop = model.evaluate(obs)
+            outs = softmax(outs)
+            return np.eye(model.n_outputs)[
+                rng.choice(model.n_outputs, p=outs)
+            ]
+
+        def param_gradient(traj):
+            outs, backprop = model.evaluate(traj.o)
+            outs = softmax(outs)
+            grad = np.multiply((traj.a - outs).T, traj.r).T
+            return backprop(grad)
+
+        self.n_params = model.n_params
+        self.load_params = model.load_params
+        self.policy = policy
+        self.param_gradient = param_gradient
 
 def run():
     env = ArgmaxActions(
         PrintRewards(gym.make("CartPole-v1"))
     )
 
-    model = Input(env.observation_space.low.size)
-    model = LReLU(Affine(model, 64))
-    model = Affine(model, env.action_space.low.size)
+    agent = Agent(env)
 
-    rng = np.random.RandomState()
     opt = Adams(
-        rng.randn(model.n_params) * 0.1,
+        np.random.randn(agent.n_params) * 0.1,
         lr=0.00005,
         horizon=5,
         epsilon=4e-8
     )
 
-    def stochastic_policy(obs):
-        policy = softmax(model.evaluate([obs])[0])[0]
-        return np.eye(model.n_outputs)[
-            rng.choice(model.n_outputs, p=policy)
-        ]
-
     normalize = RunningNormalize(horizon=10)
 
     for _ in range(150):
-        model.load_params(opt.get_value())
-        traj = episode(env, stochastic_policy)
+        # Run one episode using current policy
+        agent.load_params(opt.get_value())
+        traj = episode(env, agent.policy)
 
+        # Policy gradient step
         traj = traj.discounted(horizon=500)
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
-
-        model_outs, backprop = model.evaluate(traj.o)
-        model_outs = softmax(model_outs)
-        grad = ((traj.a - model_outs).T * traj.r.T).T
-        opt.apply_gradient(backprop(grad))
-
-        trajs = []
+        opt.apply_gradient(agent.param_gradient(traj))
 
 if __name__ == "__main__":
     run()
