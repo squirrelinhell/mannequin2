@@ -30,8 +30,8 @@ class ArgmaxActions(gym.Wrapper):
 
         super().__init__(env)
 
-        assert isinstance(env.action_space, gym.spaces.Discrete)
-        dims = int(env.action_space.n)
+        assert isinstance(self.env.action_space, gym.spaces.Discrete)
+        dims = int(self.env.action_space.n)
 
         def do_step(action):
             action = np.asarray(action, dtype=np.float32)
@@ -40,6 +40,22 @@ class ArgmaxActions(gym.Wrapper):
 
         self._step = do_step
         self.action_space = gym.spaces.Box(0.0, 1.0, (dims,))
+
+class NormalizedObservations(gym.Wrapper):
+    def __init__(self, env):
+        from mannequin import RunningNormalize
+
+        super().__init__(env)
+
+        assert isinstance(self.env.observation_space, gym.spaces.Box)
+        normalize = RunningNormalize(self.env.observation_space.shape)
+
+        def do_step(action):
+            obs, reward, done, info = self.env._step(action)
+            obs = normalize(obs)
+            return obs, reward, done, info
+
+        self._step = do_step
 
 class PrintRewards(gym.Wrapper):
     def __init__(self, env):
