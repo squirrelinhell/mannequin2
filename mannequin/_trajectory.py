@@ -41,11 +41,11 @@ class Trajectory(object):
             return Trajectory(**data)
 
         def discounted(*, horizon):
-            from mannequin import discounted_rewards
+            from mannequin import discounted as d
             return Trajectory(
                 observations=observations,
                 actions=actions,
-                rewards=discounted_rewards(rewards, horizon=horizon)
+                rewards=d(rewards, horizon=horizon)
             )
 
         # Public methods

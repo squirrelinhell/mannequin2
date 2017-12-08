@@ -56,13 +56,15 @@ class Multiplier(object):
     def __init__(self, inner, multiplier):
         import numpy as np
 
-        value = np.asarray(multiplier, dtype=np.float32)
+        multiplier = np.asarray(multiplier, dtype=np.float32)
 
         def evaluate(input_batch):
             input_batch, inner_backprop = inner.evaluate(input_batch)
             def backprop(output_gradients):
-                return inner_backprop(output_gradients) * multiplier
-            return input_batch * multiplier, backprop
+                return inner_backprop(
+                    np.multiply(output_gradients, multiplier)
+                )
+            return np.multiply(input_batch, multiplier), backprop
 
         self.n_params = inner.n_params
         self.n_outputs = inner.n_outputs
@@ -85,6 +87,23 @@ class LReLU(object):
             input_batch = np.array(input_batch)
             input_batch[negative] *= leak
             return input_batch, backprop
+
+        self.n_params = inner.n_params
+        self.n_outputs = inner.n_outputs
+        self.load_params = inner.load_params
+        self.evaluate = evaluate
+
+class Tanh(object):
+    def __init__(self, inner):
+        import numpy as np
+
+        def evaluate(input_batch):
+            input_batch, inner_backprop = inner.evaluate(input_batch)
+            tanh = np.tanh(input_batch)
+            def backprop(output_gradients):
+                dtanh = 1.0 - np.square(tanh)
+                return inner_backprop(output_gradients * dtanh)
+            return tanh, backprop
 
         self.n_params = inner.n_params
         self.n_outputs = inner.n_outputs

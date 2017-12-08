@@ -77,20 +77,20 @@ class RunningNormalize(object):
         self.update(value)
         return self.apply(value)
 
-def discounted_rewards(rewards, *, horizon):
+def discounted(values, *, horizon):
     import numpy as np
 
     step = 1.0 / float(horizon)
     assert (step > 1e-6) and (step < 1.0)
 
-    rewards = np.array(rewards, dtype=np.float64)
+    values = np.array(values, dtype=np.float64)
     rew_sum = 0.0
 
-    for i in range(len(rewards)-1, -1, -1):
-        rew_sum += step * (rewards[i] - rew_sum)
-        rewards[i] = rew_sum
+    for i in range(len(values)-1, -1, -1):
+        rew_sum += step * (values[i] - rew_sum)
+        values[i] = rew_sum
 
-    return rewards
+    return values
 
 def bar(value, max_value=100.0, *, length=50):
     value = float(value)
