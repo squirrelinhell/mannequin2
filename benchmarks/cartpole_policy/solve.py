@@ -57,10 +57,12 @@ def run():
 
     normalize = RunningNormalize(horizon=10)
 
-    for _ in range(150):
+    time = 0
+    while time < 20000:
         # Run one episode using current policy
         agent.load_params(opt.get_value())
         traj = episode(env, agent.policy)
+        time += len(traj)
 
         # Policy gradient step
         traj = traj.discounted(horizon=500)
