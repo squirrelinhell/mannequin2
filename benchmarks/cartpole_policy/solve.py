@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 
-import sys
-import numpy as np
-import gym
-
-sys.path.append("../..")
-from mannequin import Trajectory, RunningNormalize, Adams
-from mannequin.gym import ArgmaxActions, PrintRewards, episode
-from mannequin.basicnet import Input, Affine, LReLU
-
 class Agent(object):
     def __init__(self, env):
+        import numpy as np
+        from mannequin.basicnet import Input, Affine, LReLU
+
         rng = np.random.RandomState()
 
         model = Input(env.observation_space.low.size)
@@ -42,6 +36,14 @@ class Agent(object):
         self.param_gradient = param_gradient
 
 def run():
+    import sys
+    import numpy as np
+    import gym
+
+    sys.path.append("../..")
+    from mannequin import RunningNormalize, Adams
+    from mannequin.gym import ArgmaxActions, PrintRewards, episode
+
     env = ArgmaxActions(
         PrintRewards(gym.make("CartPole-v1"))
     )
