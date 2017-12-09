@@ -87,29 +87,31 @@ class PrintRewards(gym.Wrapper):
         self._step = do_step
         self._reset = do_reset
 
+def one_step(env, policy):
+    obs = env.next_obs if hasattr(env, "next_obs") else None
+    obs = env.reset() if obs is None else obs
+    act = policy(obs)
+    next_obs, rew, done, _ = env.step(act)
+    env.next_obs = None if done else next_obs
+    return obs, act, rew, done
+
 def episode(env, policy, *, render=False):
     import gym.spaces
     from mannequin import Trajectory
 
     assert isinstance(env.action_space, gym.spaces.Box)
 
-    next_obs = env.reset()
-    done = False
-
-    all_obs = []
-    all_act = []
-    all_rew = []
-
+    env.next_obs = env.reset()
     if render:
         env.render()
 
-    while not done:
-        all_obs.append(next_obs)
-        all_act.append(policy(next_obs))
-        next_obs, rew, done, _ = env.step(all_act[-1])
-        all_rew.append(rew)
+    hist = []
+    done = False
 
+    while not done:
+        *exp, done = one_step(env, policy)
+        hist.append(exp)
         if render:
             env.render()
 
-    return Trajectory(all_obs, all_act, all_rew)
+    return Trajectory(*zip(*hist))
