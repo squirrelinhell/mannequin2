@@ -44,9 +44,9 @@ def run():
     from mannequin import RunningNormalize, Adams
     from mannequin.gym import ArgmaxActions, PrintRewards, episode
 
-    env = ArgmaxActions(
-        PrintRewards(gym.make("CartPole-v1"))
-    )
+    env = gym.make("CartPole-v1")
+    env = PrintRewards(env)
+    env = ArgmaxActions(env)
 
     agent = Agent(env)
 
