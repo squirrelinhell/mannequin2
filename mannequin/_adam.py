@@ -3,7 +3,8 @@ class BaseTwoMoments:
     def __init__(self, value, update_rule, *,
             horizon=10,
             var_horizon=100,
-            print_norm=False):
+            print_norm=False,
+            **global_params):
         import numpy as np
         import os
         from mannequin import RunningMean
@@ -17,7 +18,7 @@ class BaseTwoMoments:
         def norm(v):
             return np.sqrt(np.sum(np.square(v)))
 
-        def apply_gradient(grad):
+        def apply_gradient(grad, **local_params):
             nonlocal value
 
             grad = np.asarray(grad, dtype=np.float64)
@@ -26,7 +27,12 @@ class BaseTwoMoments:
             running_mean.update(grad)
             running_var.update(np.square(grad))
 
-            add = update_rule(running_mean.get(), running_var.get())
+            local_params = dict(global_params, **local_params)
+            add = update_rule(
+                running_mean.get(),
+                running_var.get(),
+                **local_params
+            )
 
             if print_norm:
                 print("Update norm: %10.4f" % norm(add))
@@ -38,22 +44,21 @@ class BaseTwoMoments:
         self.apply_gradient = apply_gradient
 
 class Adam(BaseTwoMoments):
-    def __init__(self, value, *, lr, epsilon=1e-8, **params):
+    def __init__(self, value, **params):
         import numpy as np
-        lr = float(lr)
-        epsilon = float(epsilon)
 
-        def update_rule(mean, var):
+        def update_rule(mean, var, *, lr, epsilon=1e-8):
+            lr = float(lr)
+            epsilon = float(epsilon)
             return lr * (mean / (epsilon + np.sqrt(var)))
 
         super().__init__(value, update_rule, **params)
 
 class Adams(BaseTwoMoments):
-    def __init__(self, value, *, lr, epsilon=1e-8, **params):
-        lr = float(lr)
-        epsilon = float(epsilon)
-
-        def update_rule(mean, var):
+    def __init__(self, value, **params):
+        def update_rule(mean, var, *, lr, epsilon=1e-8):
+            lr = float(lr)
+            epsilon = float(epsilon)
             return lr * (mean / (epsilon + var))
 
         super().__init__(value, update_rule, **params)
