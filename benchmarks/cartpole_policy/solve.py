@@ -35,7 +35,7 @@ class Agent(object):
         self.policy = policy
         self.param_gradient = param_gradient
 
-def run():
+def run(render=False):
     import sys
     import numpy as np
     import gym
@@ -72,5 +72,9 @@ def run():
         traj = traj.modified(rewards=np.tanh)
         opt.apply_gradient(agent.param_gradient(traj))
 
+    if render:
+        while True:
+            episode(env, agent.policy, render=True)
+
 if __name__ == "__main__":
-    run()
+    run(**{a[2:]: True for a in __import__("sys").argv[1:]})

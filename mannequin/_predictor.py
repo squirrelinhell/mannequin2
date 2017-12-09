@@ -1,7 +1,7 @@
 
 class SimplePredictor(object):
     def __init__(self, in_size, out_size=1, *,
-            hid_layers=2, hid_size=64, batch_size=128):
+            hid_layers=2, hid_size=64, batch_size=64):
         import numpy as np
         from mannequin import Adam, Trajectory
         from mannequin.basicnet import Input, Affine, Tanh
