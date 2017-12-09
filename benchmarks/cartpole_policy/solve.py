@@ -1,54 +1,89 @@
 #!/usr/bin/env python3
 
-class Agent(object):
-    def __init__(self, env):
-        import numpy as np
-        from mannequin.basicnet import Input, Affine, LReLU
+def build_problem():
+    import numpy as np
+    import gym
 
-        rng = np.random.RandomState()
+    from mannequin.basicnet import Input, Affine, LReLU
+    from mannequin.gym import ArgmaxActions
 
-        model = Input(env.observation_space.low.size)
-        model = LReLU(Affine(model, 64))
-        model = Affine(model, env.action_space.low.size)
+    env = gym.make("CartPole-v1")
+    env = ArgmaxActions(env)
 
-        def softmax(v):
-            v = v.T
-            v = np.exp(v - np.amax(v, axis=0))
-            v /= np.sum(v, axis=0)
-            return v.T
+    rng = np.random.RandomState()
 
-        def policy(obs):
-            outs, backprop = model.evaluate(obs)
-            outs = softmax(outs)
-            return np.eye(model.n_outputs)[
-                rng.choice(model.n_outputs, p=outs)
-            ]
+    model = Input(env.observation_space.low.size)
+    model = LReLU(Affine(model, 64))
+    model = Affine(model, env.action_space.low.size)
 
-        def param_gradient(traj):
-            outs, backprop = model.evaluate(traj.o)
-            outs = softmax(outs)
-            grad = np.multiply((traj.a - outs).T, traj.r).T
-            return backprop(grad)
+    def softmax(v):
+        v = v.T
+        v = np.exp(v - np.amax(v, axis=0))
+        v /= np.sum(v, axis=0)
+        return v.T
 
-        self.n_params = model.n_params
-        self.load_params = model.load_params
-        self.policy = policy
-        self.param_gradient = param_gradient
+    def policy(obs):
+        outs, backprop = model.evaluate(obs)
+        outs = softmax(outs)
+        return np.eye(model.n_outputs)[
+            rng.choice(model.n_outputs, p=outs)
+        ]
+
+    def param_gradient(traj):
+        outs, backprop = model.evaluate(traj.o)
+        outs = softmax(outs)
+        grad = np.multiply((traj.a - outs).T, traj.r).T
+        return backprop(grad)
+
+    model.policy = policy
+    model.param_gradient = param_gradient
+
+    return env, model
+
+def start_render_thread(opt):
+    import ctypes
+    import multiprocessing
+    import numpy as np
+    from mannequin.gym import episode
+
+    def shared_array(shape):
+        size = int(np.prod(shape))
+        buf = multiprocessing.Array(ctypes.c_double, size)
+        arr = np.frombuffer(buf.get_obj())
+        return arr.reshape(shape)
+
+    shared_params = shared_array(opt.get_value().size)
+
+    def render_loop():
+        env, actor = build_problem()
+        while True:
+            actor.load_params(shared_params)
+            try:
+                episode(env, actor.policy, render=True)
+            except:
+                pass
+
+    orig_apply = opt.apply_gradient
+    def apply_and_update(*args, **kwargs):
+        orig_apply(*args, **kwargs)
+        shared_params[:] = opt.get_value()
+    opt.apply_gradient = apply_and_update
+
+    multiprocessing.Process(
+        target=render_loop,
+        daemon=True
+    ).start()
 
 def run(render=False):
     import sys
     import numpy as np
-    import gym
 
     sys.path.append("../..")
     from mannequin import RunningNormalize, Adams
-    from mannequin.gym import ArgmaxActions, PrintRewards, episode
+    from mannequin.gym import PrintRewards, episode
 
-    env = gym.make("CartPole-v1")
+    env, agent = build_problem()
     env = PrintRewards(env)
-    env = ArgmaxActions(env)
-
-    agent = Agent(env)
 
     opt = Adams(
         np.random.randn(agent.n_params) * 0.1,
@@ -58,6 +93,9 @@ def run(render=False):
     )
 
     normalize = RunningNormalize(horizon=10)
+
+    if render:
+        start_render_thread(opt)
 
     time = 0
     while time < 20000:
@@ -71,10 +109,6 @@ def run(render=False):
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
         opt.apply_gradient(agent.param_gradient(traj))
-
-    if render:
-        while True:
-            episode(env, agent.policy, render=True)
 
 if __name__ == "__main__":
     run(**{a[2:]: True for a in __import__("sys").argv[1:]})
