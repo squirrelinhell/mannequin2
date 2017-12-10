@@ -80,9 +80,11 @@ def add_plot(ax, xs, ys, ci=False, mean=False, **kwargs):
         ax.fill_between(xy[:,0], xy[:,2], xy[:,4],
             color=color, linewidth=0, zorder=1, alpha=0.2)
     elif mean:
-        color = ax.plot(xy[:,0], xy[:,1], ".", markersize=10,
-            alpha=0.2, zorder=1)[0].get_color()
-        xy = running_mean(xy, len(xy) // 10)
+        color=None
+        if len(xy) >= 20:
+            color = ax.plot(xy[:,0], xy[:,1], ".", markersize=10,
+                alpha=0.2, zorder=1)[0].get_color()
+            xy = running_mean(xy, len(xy) // 10)
         ax.plot(xy[:,0], xy[:,1], "w-", linewidth=4, zorder=2)
         ax.plot(xy[:,0], xy[:,1], "-", color=color,
             linewidth=2, zorder=3, **kwargs)
@@ -143,17 +145,21 @@ def build_plot(input_file, *columns, **opts):
         if len(cls) >= 2:
             cls_columns.append((n, v, cls))
 
-    def format_ax(label, prop):
-        lims = prop("get_%slim")()
+    def format_ax(prop, label, vs):
         if label[:4] == "log(":
             label = label[4:-1]
             prop("set_%sscale")("log", nonposx="clip", nonposy="clip")
-            if lims[0] > 1.0:
-                prop("set_%slim")(1.0, None)
-            else:
-                prop("set_%slim")(None, max(lims[1], 1.0))
+            vs = vs[np.logical_and(vs > 0.0, np.isfinite(vs))]
+            if len(vs) >= 1:
+                prop("set_%slim")(*np.power(10.0, [
+                    min(0.0, np.floor(np.log10(np.min(vs)))),
+                    max(0.0, np.ceil(np.log10(np.max(vs))))
+                ]))
         else:
-            prop("set_%slim")(min(lims[0], 0.0), max(lims[1], 0.0))
+            lims = [min(0.0, np.nanmin(vs)), max(0.0, np.nanmax(vs))]
+            if lims[1] > lims[0]:
+                prop("set_%slim")(*lims)
+
         prop("set_%slabel")("" if label == "$0" else label)
 
     def render_ax(ax, *, cls_column=None, pick=slice(None)):
@@ -171,8 +177,8 @@ def build_plot(input_file, *columns, **opts):
                 )
             ax.legend(loc=3, title=cls_column[0])
         ax.grid()
-        format_ax(xs[0], lambda prop: getattr(ax, prop % "x"))
-        format_ax(ys[0], lambda prop: getattr(ax, prop % "y"))
+        format_ax(lambda prop: getattr(ax, prop % "x"), *xs)
+        format_ax(lambda prop: getattr(ax, prop % "y"), *ys)
 
     fig, axes = plt.subplots(
         nrows=1 if len(cls_columns) < 3 else len(cls_columns[2][2]),

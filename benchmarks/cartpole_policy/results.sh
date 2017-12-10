@@ -3,9 +3,12 @@
 export PYTHONPATH="$(readlink -m ../..):$PYTHONPATH" || exit 1
 export PATH="../_utils:$PATH"
 
-code-variants --copies 100 --run ./solve.py __variants || exit 1
+VARIANTS=$(code-variants --print --copies 100 --run ./solve.py __variants) || exit 1
 
-cat __variants/*.out > __variants/all || exit 1
+for v in $VARIANTS; do
+    ( read -r line && echo "$line variant" && \
+        while read -r line; do echo "$line $v"; done ) < "__variants/$v.out"
+done > __variants/all
 
 PLOT_FILE=__reward.png \
     marginal-plot --ci __variants/all reward step || exit 1

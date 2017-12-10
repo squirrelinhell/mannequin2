@@ -12,10 +12,12 @@ Usage:
 Options:
     --run              Execute generated files in parallel
     --copies <n>       Create identical copies of each variant
+    --print            Print generated file names
 '
 
-COPIES=
 RUN=0
+COPIES=
+PRINT=
 
 while [ "x${1::2}" = x-- ]; do
     case "x$1" in
@@ -24,6 +26,7 @@ while [ "x${1::2}" = x-- ]; do
             shift
             COPIES="$(seq -w $1)" || exit 1
         ;;
+        x--print) PRINT=1 ;;
         *)
             echo "$INFO" 1>&2
             exit 1
@@ -126,6 +129,12 @@ for id in "${!SOURCES[@]}"; do
     chmod "$OUTPUT_FILE" --reference="$INPUT_FILE"
 done
 
+if [ "x$PRINT" != x ]; then
+    for label in "${LABELS[@]}"; do
+        echo "$label"
+    done
+fi
+
 [ "x$RUN" = x1 ] || exit 0
 
 TMPDIR=$(mktemp -d) || exit 1
@@ -143,4 +152,4 @@ all: $(patsubst %,'"$OUTPUT_DIR"'/%.out, '"${LABELS[@]}"')
 
 NUM_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
 echo "Max threads: $NUM_THREADS" 1>&2
-make -f "$TMPDIR/makefile" -j "$NUM_THREADS" || exit 1
+make -f "$TMPDIR/makefile" -j "$NUM_THREADS" 1>&2 || exit 1
