@@ -15,26 +15,22 @@ class Input(object):
         self.load_params = load_params
         self.evaluate = evaluate
 
-class RawAffine(object):
+class Linear(object):
     def __init__(self, inner, n_outputs):
         import numpy as np
 
         n_outputs = int(n_outputs)
         n_inputs = int(inner.n_outputs)
-        weights = np.zeros((n_inputs, n_outputs), dtype=np.float32)
-        bias = np.zeros(n_outputs, dtype=np.float32)
-        n_params = int(weights.size + bias.size)
+        params = np.zeros((n_inputs, n_outputs), dtype=np.float32)
 
-        def load_params(params):
-            params = np.asarray(params, dtype=np.float32)
-            assert len(params) >= n_params
-            weights[:] = params[0:weights.size].reshape(weights.shape)
-            bias[:] = params[weights.size:n_params]
-            inner.load_params(params[n_params:])
+        def load_params(new_params):
+            new_params = np.asarray(new_params, dtype=np.float32)
+            assert len(new_params) >= params.size
+            params[:] = new_params[-params.size:].reshape(params.shape)
+            inner.load_params(new_params[:-params.size])
 
         def evaluate(inputs):
             inputs, inner_backprop = inner.evaluate(inputs)
-            inputs = np.asarray(inputs, dtype=np.float32)
             def backprop(grad):
                 nonlocal inputs
                 grad = np.asarray(grad, dtype=np.float32)
@@ -43,14 +39,39 @@ class RawAffine(object):
                 if len(grad.shape) <= 1:
                     grad = np.reshape(grad, (1,) + grad.shape)
                 return np.concatenate((
-                    np.dot(inputs.T, grad).reshape(-1) / len(grad),
-                    np.mean(grad, axis=0),
-                    inner_backprop(np.dot(grad, weights.T))
+                    inner_backprop(np.dot(grad, params.T)),
+                    np.dot(inputs.T, grad).reshape(-1) / len(grad)
                 ), axis=0)
-            return np.dot(inputs, weights) + bias, backprop
+            return np.dot(inputs, params), backprop
 
-        self.n_params = inner.n_params + n_params
+        self.n_params = inner.n_params + params.size
         self.n_outputs = n_outputs
+        self.load_params = load_params
+        self.evaluate = evaluate
+
+class Bias(object):
+    def __init__(self, inner):
+        import numpy as np
+
+        params = np.zeros(int(inner.n_outputs), dtype=np.float32)
+
+        def load_params(new_params):
+            new_params = np.asarray(new_params, dtype=np.float32)
+            assert len(new_params) >= params.size
+            params[:] = new_params[-params.size:]
+            inner.load_params(new_params[:-params.size])
+
+        def evaluate(input_batch):
+            input_batch, inner_backprop = inner.evaluate(input_batch)
+            def backprop(grad):
+                return np.concatenate((
+                    inner_backprop(grad),
+                    np.mean(grad, axis=tuple(range(0, len(grad.shape)-1)))
+                ), axis=0)
+            return input_batch + params, backprop
+
+        self.n_params = inner.n_params + params.size
+        self.n_outputs = params.size
         self.load_params = load_params
         self.evaluate = evaluate
 
@@ -116,6 +137,6 @@ def Affine(inner, n_outputs):
     import numpy as np
 
     return Multiplier(
-        RawAffine(inner, n_outputs),
+        Bias(Linear(inner, n_outputs)),
         1.0 / np.sqrt(inner.n_outputs + 1)
     )
