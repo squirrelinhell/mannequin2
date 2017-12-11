@@ -80,10 +80,9 @@ def run(render=False):
 
     sys.path.append("../..")
     from mannequin import RunningNormalize, Adams
-    from mannequin.gym import PrintRewards, episode
+    from mannequin.gym import episode
 
     env, agent = build_problem()
-    env = PrintRewards(env)
 
     opt = Adams(
         np.random.randn(agent.n_params) * 0.1,
@@ -97,12 +96,12 @@ def run(render=False):
     if render:
         start_render_thread(opt)
 
-    time = 0
-    while time < 20000:
+    print("# episode reward", flush=True)
+    for ep in range(1, 201):
         # Run one episode using current policy
         agent.load_params(opt.get_value())
         traj = episode(env, agent.policy)
-        time += len(traj)
+        print("%d %.4f" % (ep, np.sum(traj.r)), flush=True)
 
         # Policy gradient step
         traj = traj.discounted(horizon=500)

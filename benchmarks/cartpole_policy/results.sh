@@ -11,4 +11,4 @@ for v in $VARIANTS; do
 done > __variants/all
 
 PLOT_FILE=__reward.png \
-    marginal-plot --ci __variants/all reward step || exit 1
+    marginal-plot --mean __variants/all reward episode || exit 1

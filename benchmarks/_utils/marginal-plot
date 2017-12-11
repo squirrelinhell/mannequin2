@@ -51,35 +51,11 @@ def running_mean(data, window):
     sums = np.cumsum(data, 0)
     return (sums[window:] - sums[:-window]) / window
 
-def bootstrap_ci(xy, window):
-    window = max(1, int(window) // 2)
-    results = []
-    for i in range(0, len(xy), max(1, window // 10)):
-        d = xy[max(0,i-window):i+window+1]
-        b = np.sort(d[:,1][np.random.choice(len(d), size=10001)])
-        results.append(
-            [np.mean(d[:,0])]
-            + [
-                np.mean(b[c-50:c+51])
-                for c in (1000, 2500, 5000, 7500, 9000)
-            ]
-        )
-    return np.array(results, dtype=np.float32)
-
-def add_plot(ax, xs, ys, ci=False, mean=False, **kwargs):
+def add_plot(ax, xs, ys, mean=False, **kwargs):
     xy = np.array(list(sorted(zip(xs, ys))), dtype=np.float32)
     if len(xy) < 1:
         return
-    if ci:
-        xy = bootstrap_ci(xy, len(xy) // 10)
-        color = ax.plot(xy[:,0], xy[:,3], "-", linewidth=2,
-            zorder=4, **kwargs)[0].get_color()
-        ax.plot(xy[:,0], xy[:,3], "w-", linewidth=4, zorder=3)
-        ax.fill_between(xy[:,0], xy[:,1], xy[:,5],
-            color=color, linewidth=0, zorder=1, alpha=0.2)
-        ax.fill_between(xy[:,0], xy[:,2], xy[:,4],
-            color=color, linewidth=0, zorder=1, alpha=0.2)
-    elif mean:
+    if mean:
         color=None
         if len(xy) >= 20:
             color = ax.plot(xy[:,0], xy[:,1], ".", markersize=10,

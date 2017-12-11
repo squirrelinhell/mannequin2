@@ -57,36 +57,6 @@ class NormalizedObservations(gym.Wrapper):
 
         self._step = do_step
 
-class PrintRewards(gym.Wrapper):
-    def __init__(self, env):
-        super().__init__(env)
-
-        print("# episode step reward", flush=True)
-        ep_number = 0
-        ep_rew = None
-        total_steps = 0
-
-        def do_step(action):
-            nonlocal ep_rew, total_steps
-            obs, reward, done, info = self.env._step(action)
-            assert ep_rew is not None
-            total_steps += 1
-            ep_rew += reward
-            if done:
-                print("%d %d %.4f"
-                    % (ep_number, total_steps, ep_rew), flush=True)
-                ep_rew = None
-            return obs, reward, done, info
-
-        def do_reset():
-            nonlocal ep_number, ep_rew
-            ep_number += 1
-            ep_rew = 0.0
-            return self.env._reset()
-
-        self._step = do_step
-        self._reset = do_reset
-
 def one_step(env, policy):
     import numpy as np
     obs = env.next_obs if hasattr(env, "next_obs") else None
