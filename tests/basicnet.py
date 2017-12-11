@@ -17,5 +17,10 @@ print(backprop([[1.0, -1.0], [-2.0, 2.0]]).reshape(-1, 6))
 
 value, backprop = LReLU(m).evaluate([1.0, -2.3])
 print(value)
+print(backprop([1.0, -1.0]))
+
+value, backprop = Tanh(m).evaluate([1.0, -2.3])
+print(value)
+print(backprop([1.0, -1.0]))
 
 assert timer() < 0.01
