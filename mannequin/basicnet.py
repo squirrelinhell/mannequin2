@@ -32,20 +32,22 @@ class RawAffine(object):
             bias[:] = params[weights.size:n_params]
             inner.load_params(params[n_params:])
 
-        def evaluate(input_batch):
-            input_batch, inner_backprop = inner.evaluate(input_batch)
-            def backprop(output_gradients):
-                output_gradients = np.asarray(output_gradients,
-                    dtype=np.float32)
+        def evaluate(inputs):
+            inputs, inner_backprop = inner.evaluate(inputs)
+            inputs = np.asarray(inputs, dtype=np.float32)
+            def backprop(grad):
+                nonlocal inputs
+                grad = np.asarray(grad, dtype=np.float32)
+                if len(inputs.shape) <= 1:
+                    inputs = np.reshape(inputs, (1,) + inputs.shape)
+                if len(grad.shape) <= 1:
+                    grad = np.reshape(grad, (1,) + grad.shape)
                 return np.concatenate((
-                    np.dot(input_batch.T, output_gradients).reshape(-1)
-                        / len(output_gradients),
-                    np.mean(output_gradients, axis=0)
-                        if len(output_gradients.shape) == 2
-                        else output_gradients,
-                    inner_backprop(np.dot(output_gradients, weights.T))
+                    np.dot(inputs.T, grad).reshape(-1) / len(grad),
+                    np.mean(grad, axis=0),
+                    inner_backprop(np.dot(grad, weights.T))
                 ), axis=0)
-            return np.dot(input_batch, weights) + bias, backprop
+            return np.dot(inputs, weights) + bias, backprop
 
         self.n_params = inner.n_params + n_params
         self.n_outputs = n_outputs
