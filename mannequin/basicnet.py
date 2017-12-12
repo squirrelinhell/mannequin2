@@ -83,7 +83,7 @@ class Multiplier(Layer):
         super().__init__(inner, evaluate=evaluate)
 
 class LReLU(Layer):
-    def __init__(self, inner, leak=0.1):
+    def __init__(self, inner, *, leak=0.1):
         leak = float(leak)
 
         def evaluate(inps):
