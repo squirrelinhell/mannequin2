@@ -6,23 +6,27 @@ class Input(object):
         def load_params(params):
             assert len(params) == 0
 
-        def evaluate(input_batch):
-            input_batch = np.asarray(input_batch, dtype=np.float32)
-            return input_batch, lambda output_gradients: []
-
-        self.n_params = 0
         self.n_outputs = n_inputs
+        self.evaluate = lambda inps: (inps, lambda grad: [])
+        self.n_params = 0
         self.load_params = load_params
-        self.evaluate = evaluate
 
-class ParametrizedLayer(object):
-    def __init__(self, inner, *, params):
+class Layer(object):
+    def __init__(self, inner, *, evaluate):
+        self.n_outputs = inner.n_outputs
+        self.evaluate = evaluate
+        self.n_params = inner.n_params
+        self.load_params = inner.load_params
+
+class ParametrizedLayer(Layer):
+    def __init__(self, inner, *, evaluate, params):
         def load_params(new_val):
             new_val = np.asarray(new_val, dtype=np.float32)
             assert len(new_val.shape) == 1
             params[:] = new_val[-params.size:].reshape(params.shape)
             inner.load_params(new_val[:-params.size])
 
+        super().__init__(inner, evaluate=evaluate)
         self.n_params = inner.n_params + params.size
         self.load_params = load_params
 
@@ -44,9 +48,8 @@ class Linear(ParametrizedLayer):
                 ), axis=0)
             return np.dot(inps, params), backprop
 
-        super().__init__(inner, params=params)
+        super().__init__(inner, evaluate=evaluate, params=params)
         self.n_outputs = n_outputs
-        self.evaluate = evaluate
 
 class Bias(ParametrizedLayer):
     def __init__(self, inner):
@@ -63,61 +66,50 @@ class Bias(ParametrizedLayer):
                 ), axis=0)
             return inps + params, backprop
 
-        super().__init__(inner, params=params)
-        self.evaluate = evaluate
-        self.n_outputs = n_outputs
+        super().__init__(inner, evaluate=evaluate, params=params)
 
-class Multiplier(object):
+class Multiplier(Layer):
     def __init__(self, inner, multiplier):
         multiplier = np.asarray(multiplier, dtype=np.float32)
 
-        def evaluate(input_batch):
-            input_batch, inner_backprop = inner.evaluate(input_batch)
-            def backprop(output_gradients):
+        def evaluate(inps):
+            inps, inner_backprop = inner.evaluate(inps)
+            def backprop(grad):
                 return inner_backprop(
-                    np.multiply(output_gradients, multiplier)
+                    np.multiply(grad, multiplier)
                 )
-            return np.multiply(input_batch, multiplier), backprop
+            return np.multiply(inps, multiplier), backprop
 
-        self.n_params = inner.n_params
-        self.n_outputs = inner.n_outputs
-        self.load_params = inner.load_params
-        self.evaluate = evaluate
+        super().__init__(inner, evaluate=evaluate)
 
-class LReLU(object):
+class LReLU(Layer):
     def __init__(self, inner, leak=0.1):
         leak = float(leak)
 
-        def evaluate(input_batch):
-            input_batch, inner_backprop = inner.evaluate(input_batch)
-            negative = input_batch < 0.0
-            def backprop(output_gradients):
-                output_gradients = np.array(output_gradients)
-                output_gradients[negative] *= leak
-                return inner_backprop(output_gradients)
-            input_batch = np.array(input_batch)
-            input_batch[negative] *= leak
-            return input_batch, backprop
+        def evaluate(inps):
+            inps, inner_backprop = inner.evaluate(inps)
+            negative = inps < 0.0
+            def backprop(grad):
+                grad = np.array(grad)
+                grad[negative] *= leak
+                return inner_backprop(grad)
+            inps = np.array(inps)
+            inps[negative] *= leak
+            return inps, backprop
 
-        self.n_params = inner.n_params
-        self.n_outputs = inner.n_outputs
-        self.load_params = inner.load_params
-        self.evaluate = evaluate
+        super().__init__(inner, evaluate=evaluate)
 
-class Tanh(object):
+class Tanh(Layer):
     def __init__(self, inner):
-        def evaluate(input_batch):
-            input_batch, inner_backprop = inner.evaluate(input_batch)
-            tanh = np.tanh(input_batch)
-            def backprop(output_gradients):
+        def evaluate(inps):
+            inps, inner_backprop = inner.evaluate(inps)
+            tanh = np.tanh(inps)
+            def backprop(grad):
                 dtanh = 1.0 - np.square(tanh)
-                return inner_backprop(output_gradients * dtanh)
+                return inner_backprop(grad * dtanh)
             return tanh, backprop
 
-        self.n_params = inner.n_params
-        self.n_outputs = inner.n_outputs
-        self.load_params = inner.load_params
-        self.evaluate = evaluate
+        super().__init__(inner, evaluate=evaluate)
 
 def Affine(inner, n_outputs):
     return Multiplier(
