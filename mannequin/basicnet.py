@@ -15,61 +15,57 @@ class Input(object):
         self.load_params = load_params
         self.evaluate = evaluate
 
-class Linear(object):
+class ParametrizedLayer(object):
+    def __init__(self, inner, *, params):
+        def load_params(new_val):
+            new_val = np.asarray(new_val, dtype=np.float32)
+            assert len(new_val.shape) == 1
+            params[:] = new_val[-params.size:].reshape(params.shape)
+            inner.load_params(new_val[:-params.size])
+
+        self.n_params = inner.n_params + params.size
+        self.load_params = load_params
+
+class Linear(ParametrizedLayer):
     def __init__(self, inner, n_outputs):
-        n_outputs = int(n_outputs)
         n_inputs = int(inner.n_outputs)
         params = np.zeros((n_inputs, n_outputs), dtype=np.float32)
 
-        def load_params(new_params):
-            new_params = np.asarray(new_params, dtype=np.float32)
-            assert len(new_params) >= params.size
-            params[:] = new_params[-params.size:].reshape(params.shape)
-            inner.load_params(new_params[:-params.size])
-
-        def evaluate(inputs):
-            inputs, inner_backprop = inner.evaluate(inputs)
+        def evaluate(inps):
+            inps, inner_backprop = inner.evaluate(inps)
             def backprop(grad):
-                nonlocal inputs
+                nonlocal inps
+                inps = np.reshape(inps, (-1, n_inputs))
                 grad = np.asarray(grad, dtype=np.float32)
-                if len(inputs.shape) <= 1:
-                    inputs = np.reshape(inputs, (1,) + inputs.shape)
-                if len(grad.shape) <= 1:
-                    grad = np.reshape(grad, (1,) + grad.shape)
+                grad = np.reshape(grad, (-1, n_outputs))
                 return np.concatenate((
                     inner_backprop(np.dot(grad, params.T)),
-                    np.dot(inputs.T, grad).reshape(-1) / len(grad)
+                    np.dot(inps.T, grad).reshape(-1) / len(grad)
                 ), axis=0)
-            return np.dot(inputs, params), backprop
+            return np.dot(inps, params), backprop
 
-        self.n_params = inner.n_params + params.size
+        super().__init__(inner, params=params)
         self.n_outputs = n_outputs
-        self.load_params = load_params
         self.evaluate = evaluate
 
-class Bias(object):
+class Bias(ParametrizedLayer):
     def __init__(self, inner):
-        params = np.zeros(int(inner.n_outputs), dtype=np.float32)
+        n_outputs = int(inner.n_outputs)
+        params = np.zeros(n_outputs, dtype=np.float32)
 
-        def load_params(new_params):
-            new_params = np.asarray(new_params, dtype=np.float32)
-            assert len(new_params) >= params.size
-            params[:] = new_params[-params.size:]
-            inner.load_params(new_params[:-params.size])
-
-        def evaluate(input_batch):
-            input_batch, inner_backprop = inner.evaluate(input_batch)
+        def evaluate(inps):
+            inps, inner_backprop = inner.evaluate(inps)
             def backprop(grad):
+                grad = np.reshape(grad, (-1, n_outputs))
                 return np.concatenate((
                     inner_backprop(grad),
-                    np.mean(grad, axis=tuple(range(0, len(grad.shape)-1)))
+                    np.mean(grad, axis=0)
                 ), axis=0)
-            return input_batch + params, backprop
+            return inps + params, backprop
 
-        self.n_params = inner.n_params + params.size
-        self.n_outputs = params.size
-        self.load_params = load_params
+        super().__init__(inner, params=params)
         self.evaluate = evaluate
+        self.n_outputs = n_outputs
 
 class Multiplier(object):
     def __init__(self, inner, multiplier):

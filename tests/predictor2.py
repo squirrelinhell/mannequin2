@@ -18,4 +18,4 @@ for x in np.linspace(-2.0, 2.0, 21):
 errors = np.mean(errors, axis=0)
 assert (errors < 0.2).all()
 
-assert timer() < 2.5
+assert timer() < 1.9
