@@ -46,46 +46,25 @@ class AutogradLayer(Layer):
             self.n_params += params.size
         self.load_params = load_params
 
-class Linear(AutogradLayer):
-    def __init__(self, inner, n_outputs):
-        super().__init__(
-            inner,
-            param_shape=(inner.n_outputs, n_outputs),
-            f=np.dot
-        )
+def Linear(inner, n_outputs):
+    return AutogradLayer(inner,
+        param_shape=(inner.n_outputs, n_outputs), f=np.dot)
 
-class Bias(AutogradLayer):
-    def __init__(self, inner):
-        super().__init__(
-            inner,
-            param_shape=(inner.n_outputs,),
-            f=np.add
-        )
+def Bias(inner):
+    return AutogradLayer(inner,
+        param_shape=(inner.n_outputs,), f=np.add)
 
-class Multiplier(AutogradLayer):
-    def __init__(self, inner, multiplier):
-        multiplier = np.asarray(multiplier, dtype=np.float32)
+def Multiplier(inner, multiplier):
+    multiplier = np.asarray(multiplier, dtype=np.float32)
+    return AutogradLayer(inner, f=lambda i: np.multiply(i, multiplier))
 
-        super().__init__(
-            inner,
-            f=lambda i: np.multiply(i, multiplier)
-        )
+def LReLU(inner, leak=0.1):
+    leak = float(leak)
+    return AutogradLayer(inner,
+        f=lambda i: np.maximum(0.0, i) + leak * np.minimum(0.0, i))
 
-class LReLU(AutogradLayer):
-    def __init__(self, inner, leak=0.1):
-        leak = float(leak)
-
-        super().__init__(
-            inner,
-            f=lambda i: np.maximum(0.0, i) + leak * np.minimum(0.0, i)
-        )
-
-class Tanh(AutogradLayer):
-    def __init__(self, inner):
-        super().__init__(
-            inner,
-            f=np.tanh
-        )
+def Tanh(inner):
+    return AutogradLayer(inner, f=np.tanh)
 
 def Affine(inner, n_outputs):
     return Multiplier(
