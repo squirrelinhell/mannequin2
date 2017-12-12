@@ -6,29 +6,32 @@ trap "rm -rf $TMPDIR" EXIT
 export PYTHONPATH="$(pwd):$PYTHONPATH"
 
 DEBUG_SETUP='
-import sys
-import IPython.core.ultratb
-sys.excepthook = IPython.core.ultratb.FormattedTB(call_pdb=True)
+def debug_setup():
+    import sys
+    import IPython.core.ultratb
+    sys.excepthook = IPython.core.ultratb.FormattedTB(call_pdb=True)
+debug_setup()
+del debug_setup
 '
 
 TEST_SETUP='
-import numpy as np
-np.set_printoptions(precision=3, linewidth=100, suppress=True)
-
-def timer():
+def setup():
+    import numpy as np
+    np.set_printoptions(precision=3, linewidth=100, suppress=True)
     import time
     start_time = time.time()
     def get_time(print_info=True):
         total_time = time.time() - start_time
         import os
         import sys
-        sys.stderr.write("Time: %.3fs\n" % total_time)
-        sys.stderr.flush()
+        if print_info:
+            sys.stderr.write("Time: %.3fs\n" % total_time)
+            sys.stderr.flush()
         if "STOPTIME" in os.environ:
             return 0.0
         return total_time
     return get_time
-timer = timer()
+timer = setup()
 '
 
 if [ "x$1" != x -a "x$2" = x ]; then
@@ -80,6 +83,8 @@ for test in $TESTS; do
         diff -b --color=auto "$TMPDIR/ans" "$TMPDIR/out"
         echo
     else
-        echo OK
+        TIME=$(grep '^Time: ' <"$TMPDIR/dbg" | cut -d ' ' -f 2)
+        [ "x$TIME" = x ] || TIME=" ("$(echo $TIME)")"
+        echo "OK$TIME"
     fi
 done

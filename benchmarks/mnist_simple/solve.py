@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
+import sys
+import numpy as np
+
+sys.path.append("../..")
+from mannequin import Trajectory, SimplePredictor
+
 def run():
-    import sys
-    import numpy as np
-
-    sys.path.append("../..")
-    from mannequin import Trajectory, SimplePredictor
-
     data = np.load("__data.npz")
     train = Trajectory(data["train_x"], data["train_y"])
     test = Trajectory(data["test_x"], data["test_y"])

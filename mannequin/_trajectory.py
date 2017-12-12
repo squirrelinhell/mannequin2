@@ -1,8 +1,10 @@
 
+import numpy as np
+
+import mannequin
+
 class Trajectory(object):
     def __init__(self, observations, actions, rewards=None):
-        import numpy as np
-
         # Standarize observations
         observations = np.asarray(observations, dtype=np.float32)
         length = len(observations)
@@ -41,11 +43,10 @@ class Trajectory(object):
             return Trajectory(**data)
 
         def discounted(*, horizon):
-            from mannequin import discounted as d
             return Trajectory(
                 observations=observations,
                 actions=actions,
-                rewards=d(rewards, horizon=horizon)
+                rewards=mannequin.discounted(rewards, horizon=horizon)
             )
 
         # Public methods
@@ -90,7 +91,6 @@ class Trajectory(object):
         )
 
     def joined(*ts):
-        import numpy as np
         if len(ts) <= 1:
             ts = ts[0]
         return Trajectory(

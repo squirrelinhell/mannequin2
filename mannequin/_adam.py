@@ -1,13 +1,15 @@
 
+import os
+import numpy as np
+
+from mannequin import RunningMean
+
 class BaseTwoMoments:
     def __init__(self, value, update_rule, *,
             horizon=10,
             var_horizon=100,
             print_norm=False,
             **global_params):
-        import numpy as np
-        import os
-        from mannequin import RunningMean
 
         value = np.asarray(value, dtype=np.float64)
         value.setflags(write=False)
@@ -45,8 +47,6 @@ class BaseTwoMoments:
 
 class Adam(BaseTwoMoments):
     def __init__(self, value, **params):
-        import numpy as np
-
         def update_rule(mean, var, *, lr, epsilon=1e-8):
             lr = float(lr)
             epsilon = float(epsilon)

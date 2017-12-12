@@ -1,11 +1,12 @@
 
+import numpy as np
 import gym
+import gym.spaces
+
+from mannequin import RunningNormalize, Trajectory
 
 class UnboundedActions(gym.Wrapper):
     def __init__(self, env):
-        import numpy as np
-        import gym.spaces
-
         super().__init__(env)
 
         low = self.action_space.low
@@ -25,9 +26,6 @@ class UnboundedActions(gym.Wrapper):
 
 class ArgmaxActions(gym.Wrapper):
     def __init__(self, env):
-        import numpy as np
-        import gym.spaces
-
         super().__init__(env)
 
         assert isinstance(self.env.action_space, gym.spaces.Discrete)
@@ -43,8 +41,6 @@ class ArgmaxActions(gym.Wrapper):
 
 class NormalizedObservations(gym.Wrapper):
     def __init__(self, env):
-        from mannequin import RunningNormalize
-
         super().__init__(env)
 
         assert isinstance(self.env.observation_space, gym.spaces.Box)
@@ -58,7 +54,6 @@ class NormalizedObservations(gym.Wrapper):
         self._step = do_step
 
 def one_step(env, policy):
-    import numpy as np
     obs = env.next_obs if hasattr(env, "next_obs") else None
     obs = np.asarray(env.reset() if obs is None else obs)
     act = np.asarray(policy(obs))
@@ -67,9 +62,6 @@ def one_step(env, policy):
     return obs, act, float(rew), bool(done)
 
 def episode(env, policy, *, render=False):
-    import gym.spaces
-    from mannequin import Trajectory
-
     assert isinstance(env.action_space, gym.spaces.Box)
 
     env.next_obs = env.reset()

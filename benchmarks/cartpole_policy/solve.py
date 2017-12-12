@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 
+import sys
+import ctypes
+import multiprocessing
+import numpy as np
+import gym
+
+sys.path.append("../..")
+from mannequin import RunningNormalize, Adams
+from mannequin.basicnet import Input, Affine, LReLU
+from mannequin.gym import ArgmaxActions, episode
+
 def build_problem():
-    import numpy as np
-    import gym
-
-    from mannequin.basicnet import Input, Affine, LReLU
-    from mannequin.gym import ArgmaxActions
-
     env = gym.make("CartPole-v1")
     env = ArgmaxActions(env)
 
@@ -41,11 +46,6 @@ def build_problem():
     return env, model
 
 def start_render_thread(opt):
-    import ctypes
-    import multiprocessing
-    import numpy as np
-    from mannequin.gym import episode
-
     def shared_array(shape):
         size = int(np.prod(shape))
         buf = multiprocessing.Array(ctypes.c_double, size)
@@ -75,13 +75,6 @@ def start_render_thread(opt):
     ).start()
 
 def run(render=False):
-    import sys
-    import numpy as np
-
-    sys.path.append("../..")
-    from mannequin import RunningNormalize, Adams
-    from mannequin.gym import episode
-
     env, agent = build_problem()
 
     opt = Adams(

@@ -1,8 +1,7 @@
 
 import numpy as np
-
+from mannequin import SimplePredictor
 from test_setup import timer
-from mannequin import SimplePredictor, bar
 
 pred = SimplePredictor()
 for _ in range(100):

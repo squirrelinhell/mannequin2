@@ -1,8 +1,7 @@
 
 import numpy as np
-
-from test_setup import timer
 from mannequin.basicnet import *
+from test_setup import timer
 
 m = Affine(Affine(Input(2), 2), 2)
 m.load_params(np.arange(12))
@@ -30,4 +29,4 @@ value, backprop = Tanh(m).evaluate([[1.0, -2.3]])
 print(value)
 print(backprop([[1.0, -1.0]]).reshape(-1, 6))
 
-assert timer() < 0.01
+assert timer(print_info=False) < 0.01

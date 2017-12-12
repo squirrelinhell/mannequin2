@@ -2,11 +2,11 @@
 
 import sys
 import numpy as np
+import tensorflow.examples.tutorials.mnist as tf_mnist
 
 def run():
     sys.stderr.write("Downloading data...\n")
 
-    import tensorflow.examples.tutorials.mnist as tf_mnist
     data = tf_mnist.input_data.read_data_sets(
         "/tmp/mnist-download",
         validation_size=0,

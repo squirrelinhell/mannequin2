@@ -1,8 +1,8 @@
 
+import numpy as np
+
 class Input(object):
     def __init__(self, n_inputs):
-        import numpy as np
-
         def load_params(params):
             assert len(params) == 0
 
@@ -17,8 +17,6 @@ class Input(object):
 
 class Linear(object):
     def __init__(self, inner, n_outputs):
-        import numpy as np
-
         n_outputs = int(n_outputs)
         n_inputs = int(inner.n_outputs)
         params = np.zeros((n_inputs, n_outputs), dtype=np.float32)
@@ -51,8 +49,6 @@ class Linear(object):
 
 class Bias(object):
     def __init__(self, inner):
-        import numpy as np
-
         params = np.zeros(int(inner.n_outputs), dtype=np.float32)
 
         def load_params(new_params):
@@ -77,8 +73,6 @@ class Bias(object):
 
 class Multiplier(object):
     def __init__(self, inner, multiplier):
-        import numpy as np
-
         multiplier = np.asarray(multiplier, dtype=np.float32)
 
         def evaluate(input_batch):
@@ -96,8 +90,6 @@ class Multiplier(object):
 
 class LReLU(object):
     def __init__(self, inner, leak=0.1):
-        import numpy as np
-
         leak = float(leak)
 
         def evaluate(input_batch):
@@ -118,8 +110,6 @@ class LReLU(object):
 
 class Tanh(object):
     def __init__(self, inner):
-        import numpy as np
-
         def evaluate(input_batch):
             input_batch, inner_backprop = inner.evaluate(input_batch)
             tanh = np.tanh(input_batch)
@@ -134,8 +124,6 @@ class Tanh(object):
         self.evaluate = evaluate
 
 def Affine(inner, n_outputs):
-    import numpy as np
-
     return Multiplier(
         Bias(Linear(inner, n_outputs)),
         1.0 / np.sqrt(inner.n_outputs + 1)

@@ -1,8 +1,7 @@
 
 import numpy as np
-
-from test_setup import timer
 from mannequin import RunningNormalize
+from test_setup import timer
 
 ###
 
@@ -57,4 +56,4 @@ assert np.mean(np.abs(n.apply(data) - np_normalized)) < 1e-10
 
 ###
 
-assert timer() < 0.1
+assert timer(print_info=False) < 0.1

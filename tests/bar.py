@@ -1,6 +1,6 @@
 
-from test_setup import timer
 from mannequin import bar
+from test_setup import timer
 
 for i in range(-1500, 1500, 234):
     print(bar(i * 0.1))
@@ -18,4 +18,4 @@ print(bar(0.13))
 print(bar(0.37))
 print(bar(0.38))
 
-assert timer() < 0.01
+assert timer(print_info=False) < 0.01

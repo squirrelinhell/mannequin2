@@ -1,9 +1,8 @@
 
 import numpy as np
 import gym.spaces
-
-from test_setup import timer
 from mannequin.gym import episode, one_step
+from test_setup import timer
 
 class FakeEnv(object):
     def __init__(self):
@@ -35,3 +34,5 @@ print()
 traj = episode(env, lambda i: [0.0, 1.0])
 for e in zip(traj.o, traj.a, traj.r):
     print(*e)
+
+assert timer(print_info=False) < 0.02

@@ -1,11 +1,12 @@
 
+import numpy as np
+
+from mannequin import Adam, Trajectory
+from mannequin.basicnet import Input, Affine, Tanh
+
 class SimplePredictor(object):
     def __init__(self, in_size=1, out_size=1, *,
             hid_layers=2, hid_size=64, classifier=False):
-        import numpy as np
-        from mannequin import Adam, Trajectory
-        from mannequin.basicnet import Input, Affine, Tanh
-
         # Build a simple neural network
         model = Input(int(in_size))
         for _ in range(hid_layers):

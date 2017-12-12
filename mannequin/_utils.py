@@ -1,8 +1,8 @@
 
+import numpy as np
+
 class RunningMean(object):
     def __init__(self, shape=(), *, horizon=None):
-        import numpy as np
-
         mean = np.zeros(shape, dtype=np.float64)
         total_weight = 0.0
 
@@ -33,8 +33,6 @@ class RunningMean(object):
 
 class RunningNormalize(object):
     def __init__(self, shape=(), *, horizon=None):
-        import numpy as np
-
         r_mean = RunningMean(shape=shape, horizon=horizon)
         r_var = RunningMean(shape=shape, horizon=horizon)
         n_samples = 0
@@ -78,8 +76,6 @@ class RunningNormalize(object):
         return self.apply(value)
 
 def discounted(values, *, horizon):
-    import numpy as np
-
     step = 1.0 / float(horizon)
     assert (step > 1e-6) and (step < 1.0)
 

@@ -1,9 +1,8 @@
 
 import gym
 import numpy as np
-
-from test_setup import timer
 from mannequin.gym import ArgmaxActions, episode
+from test_setup import timer
 
 env = ArgmaxActions(gym.make("CartPole-v1"))
 trajs = [episode(env, lambda o: np.random.rand(2)) for _ in range(32)]
