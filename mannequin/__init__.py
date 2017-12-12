@@ -10,4 +10,4 @@ from ._trajectory import Trajectory
 from ._adam import Adam, Adams
 from ._predictor import SimplePredictor
 
-version = (2, 3, 2)
+version = (2, 3, 3)
