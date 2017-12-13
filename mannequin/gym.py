@@ -55,15 +55,13 @@ class NormalizedObservations(gym.Wrapper):
 
 def one_step(env, policy):
     obs = env.next_obs if hasattr(env, "next_obs") else None
-    obs = np.asarray(env.reset() if obs is None else obs)
-    act = np.asarray(policy(obs))
+    obs = env.reset() if obs is None else obs
+    act = policy(obs)
     next_obs, rew, done, _ = env.step(act)
     env.next_obs = None if done else next_obs
     return obs, act, float(rew), bool(done)
 
 def episode(env, policy, *, render=False):
-    assert isinstance(env.action_space, gym.spaces.Box)
-
     env.next_obs = env.reset()
     if render:
         env.render()

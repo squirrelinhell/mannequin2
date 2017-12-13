@@ -4,7 +4,7 @@ from test_setup import timer
 
 t = Trajectory(
     [[1, 2], [3, 4], [5, 6]],
-    [10, 11, 12],
+    [[10], [11], [12]],
     [20, 21, 22]
 )
 

@@ -6,19 +6,21 @@ import mannequin
 class Trajectory(object):
     def __init__(self, observations, actions, rewards=None):
         # Standarize observations
-        observations = np.asarray(observations, dtype=np.float32)
+        if isinstance(observations[0], (int, np.integer)):
+            observations = np.asarray(observations, dtype=np.int32)
+        else:
+            observations = np.asarray(observations, dtype=np.float32)
         length = len(observations)
         if length < 1:
             raise ValueError("Cannot create empty trajectory")
-        if len(observations.shape) < 2:
-            observations = observations.reshape((len(observations), 1))
 
         # Standarize actions
-        actions = np.asarray(actions, dtype=np.float32)
-        if length < 1:
+        if isinstance(actions[0], (int, np.integer)):
+            actions = np.asarray(actions, dtype=np.int32)
+        else:
+            actions = np.asarray(actions, dtype=np.float32)
+        if len(actions) != length:
             raise ValueError("Actions don't match observations")
-        if len(actions.shape) < 2:
-            actions = actions.reshape((len(actions), 1))
 
         # Standarize rewards
         if rewards is None:
@@ -86,8 +88,8 @@ class Trajectory(object):
     def __str__(self):
         return "<trajectory: %d x %s -> %s>" % (
             self.get_length(),
-            self.get_observations()[0].shape,
-            self.get_actions()[0].shape
+            self.get_observations().shape[1:],
+            self.get_actions().shape[1:]
         )
 
     def joined(*ts):

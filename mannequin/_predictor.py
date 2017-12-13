@@ -48,13 +48,15 @@ class SimplePredictor(object):
         def sgd_step(traj, labels=None, *, lr=0.05):
             if labels is not None:
                 traj = Trajectory(traj, labels)
+                del labels
             assert isinstance(traj, Trajectory)
-            if normalize_inputs:
-                traj = traj.modified(observations=normalize)
-            outs, backprop = model.evaluate(traj.o)
+            inps = traj.o.reshape((-1, 1)) if in_size == 1 else traj.o
+            lbls = traj.a.reshape((-1, 1)) if out_size == 1 else traj.a
+            inps = normalize(inps) if normalize_inputs else inps
+            outs, backprop = model.evaluate(inps)
             if classifier:
                 outs = softmax(outs) + outs * 0.01
-            grad = np.multiply((traj.a - outs).T, traj.r).T
+            grad = np.multiply((lbls - outs).T, traj.r).T
             opt.apply_gradient(backprop(grad), lr=lr)
             model.load_params(opt.get_value())
 
