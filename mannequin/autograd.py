@@ -23,8 +23,12 @@ class AutogradLayer(Layer):
         df = autograd.grad(lambda args, grad: np.sum(f(*args) * grad))
 
         def evaluate(inps):
+            inps = np.asarray(inps, dtype=np.float32)
             inps, inner_backprop = inner.evaluate(inps)
+            assert inps.shape == (*inps.shape[:-1], inner.n_outputs)
             outs = f(inps) if params is None else f(inps, params)
+            outs = np.asarray(outs, dtype=np.float32)
+            assert outs.shape == (*inps.shape[:-1], self.n_outputs)
             def backprop(grad):
                 nonlocal inps
                 inps = np.reshape(inps, (-1, inner.n_outputs))

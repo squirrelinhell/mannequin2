@@ -6,8 +6,18 @@ class Input(object):
         def load_params(params):
             assert len(params) == 0
 
+        def capture_gradient(grad):
+            self.last_gradient = grad
+            return []
+
+        def evaluate(inps):
+            inps = np.asarray(inps, dtype=np.float32)
+            if inps.shape[-1] != n_inputs:
+                inps = inps.reshape((-1, n_inputs))
+            return inps, capture_gradient
+
         self.n_outputs = n_inputs
-        self.evaluate = lambda inps: (inps, lambda grad: [])
+        self.evaluate = evaluate
         self.n_params = 0
         self.load_params = load_params
 
