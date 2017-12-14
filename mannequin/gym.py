@@ -61,7 +61,7 @@ def one_step(env, policy):
     env.next_obs = None if done else next_obs
     return obs, act, float(rew), bool(done)
 
-def episode(env, policy, *, render=False):
+def episode(env, policy, *, render=False, max_steps=0):
     env.next_obs = env.reset()
     if render:
         env.render()
@@ -74,5 +74,7 @@ def episode(env, policy, *, render=False):
         hist.append(exp)
         if render:
             env.render()
+        if len(hist) == max_steps:
+            break
 
     return Trajectory(*zip(*hist))
