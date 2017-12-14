@@ -22,9 +22,11 @@ def test_module(net):
     ], axis=0)
     assert np.allclose(alt_value, values[-1])
 
-    m = net.Multiplier(m, 10.0)
-    values += check(net.LReLU(m), [0.1, -2.27], [1.0, -1.0])
-    values += check(net.Tanh(m), [0.1, -2.27], [1.0, -1.0])
+    x = [0.1, -3.09]
+    m = net.Multiplier(m, 5.0)
+    values += check(m, x, [1.0, -1.0])
+    values += check(net.LReLU(m), x, [1.0, -1.0])
+    values += check(net.Tanh(m), x, [1.0, -1.0])
 
     return values
 

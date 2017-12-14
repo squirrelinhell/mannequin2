@@ -16,60 +16,77 @@ class Input(object):
                 inps = inps.reshape((-1, n_inputs))
             return inps, capture_gradient
 
-        self.n_outputs = n_inputs
         self.evaluate = evaluate
+        self.n_outputs = n_inputs
         self.n_params = 0
+        self.get_params = lambda *, output=None: []
         self.load_params = load_params
 
 class Layer(object):
-    def __init__(self, inner, *, evaluate):
-        self.n_outputs = inner.n_outputs
-        self.evaluate = evaluate
-        self.n_params = inner.n_params
-        self.load_params = inner.load_params
+    def __init__(self, inner, *,
+            evaluate, n_outputs=None, params=None):
+        if n_outputs is None:
+            n_outputs = inner.n_outputs
 
-class ParametrizedLayer(Layer):
-    def __init__(self, inner, *, evaluate, params):
+        def get_params(*, output=None):
+            if output is None:
+                output = np.zeros(self.n_params, dtype=np.float32)
+            assert len(output.shape) == 1
+            output[-params.size:] = params.reshape(-1)
+            inner.get_params(output=output[:-params.size])
+            return output
+
         def load_params(new_val):
-            new_val = np.asarray(new_val, dtype=np.float32)
-            assert len(new_val.shape) == 1
+            new_val = np.asarray(new_val, dtype=params.dtype)
+            new_val = new_val.reshape(-1)
             params[:] = new_val[-params.size:].reshape(params.shape)
             inner.load_params(new_val[:-params.size])
 
-        super().__init__(inner, evaluate=evaluate)
-        self.n_params = inner.n_params + params.size
-        self.load_params = load_params
+        self.evaluate = evaluate
+        self.n_outputs = n_outputs
 
-class Linear(ParametrizedLayer):
-    def __init__(self, inner, n_outputs):
-        n_inputs = int(inner.n_outputs)
-        params = np.zeros((n_inputs, n_outputs), dtype=np.float32)
+        if params is None:
+            self.n_params = inner.n_params
+            self.get_params = inner.get_params
+            self.load_params = inner.load_params
+        else:
+            self.n_params = inner.n_params + params.size
+            self.get_params = get_params
+            self.load_params = load_params
+
+def equalized_columns(inps, outs):
+    m = np.random.randn(inps, outs)
+    return m / np.sqrt(np.mean(np.square(m), axis=0))
+
+class Linear(Layer):
+    def __init__(self, inner, n_outputs, *, init=equalized_columns):
+        params = init(inner.n_outputs, n_outputs).astype(np.float32)
+        multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
 
         def evaluate(inps):
             inps, inner_backprop = inner.evaluate(inps)
             def backprop(grad):
                 nonlocal inps
-                inps = np.reshape(inps, (-1, n_inputs))
+                inps = np.reshape(inps, (-1, inner.n_outputs))
                 grad = np.asarray(grad, dtype=np.float32)
-                grad = np.reshape(grad, (-1, n_outputs))
+                grad = np.reshape(grad, (-1, n_outputs)) * multiplier
                 return np.concatenate((
                     inner_backprop(np.dot(grad, params.T)),
                     np.dot(inps.T, grad).reshape(-1) / len(grad)
                 ), axis=0)
-            return np.dot(inps, params), backprop
+            return np.dot(inps, params) * multiplier, backprop
 
-        super().__init__(inner, evaluate=evaluate, params=params)
-        self.n_outputs = n_outputs
+        super().__init__(inner, evaluate=evaluate,
+            n_outputs=n_outputs, params=params)
 
-class Bias(ParametrizedLayer):
-    def __init__(self, inner):
-        n_outputs = int(inner.n_outputs)
-        params = np.zeros(n_outputs, dtype=np.float32)
+class Bias(Layer):
+    def __init__(self, inner, *, init=np.zeros):
+        params = init(inner.n_outputs).astype(np.float32)
 
         def evaluate(inps):
             inps, inner_backprop = inner.evaluate(inps)
             def backprop(grad):
-                grad = np.reshape(grad, (-1, n_outputs))
+                grad = np.reshape(grad, (-1, inner.n_outputs))
                 return np.concatenate((
                     inner_backprop(grad),
                     np.mean(grad, axis=0)
@@ -122,7 +139,4 @@ class Tanh(Layer):
         super().__init__(inner, evaluate=evaluate)
 
 def Affine(inner, n_outputs):
-    return Multiplier(
-        Bias(Linear(inner, n_outputs)),
-        1.0 / np.sqrt(inner.n_outputs + 1)
-    )
+    return Bias(Linear(inner, n_outputs))

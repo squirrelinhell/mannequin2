@@ -2,24 +2,10 @@
 import autograd
 import autograd.numpy as np
 
-from mannequin.basicnet import Layer, Input
+from mannequin.basicnet import Layer, Input, equalized_columns
 
 class AutogradLayer(Layer):
-    def __init__(self, inner, *, param_shape=None, f):
-        params = None
-        if param_shape is not None:
-            param_shape = tuple(int(s) for s in param_shape)
-            params = np.zeros(param_shape, dtype=np.float32)
-
-        def load_params(new_val):
-            new_val = np.asarray(new_val, dtype=np.float32)
-            assert len(new_val.shape) == 1
-            if params is None:
-                inner.load_params(new_val)
-            else:
-                params[:] = new_val[-params.size:].reshape(param_shape)
-                inner.load_params(new_val[:-params.size])
-
+    def __init__(self, inner, *, f, params=None, **args):
         df = autograd.grad(lambda args, grad: np.sum(f(*args) * grad))
 
         def evaluate(inps):
@@ -45,18 +31,18 @@ class AutogradLayer(Layer):
                     ), axis=0)
             return outs, backprop
 
-        super().__init__(inner, evaluate=evaluate)
-        if param_shape is not None:
-            self.n_params += params.size
-        self.load_params = load_params
+        super().__init__(inner, evaluate=evaluate,
+            params=params, **args)
 
-def Linear(inner, n_outputs):
-    return AutogradLayer(inner,
-        param_shape=(inner.n_outputs, n_outputs), f=np.dot)
+def Linear(inner, n_outputs, *, init=equalized_columns):
+    params = init(inner.n_outputs, n_outputs).astype(np.float32)
+    multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
+    return AutogradLayer(inner, n_outputs=n_outputs,
+        f=lambda i, w: np.dot(i, w) * multiplier, params=params)
 
-def Bias(inner):
-    return AutogradLayer(inner,
-        param_shape=(inner.n_outputs,), f=np.add)
+def Bias(inner, *, init=np.zeros):
+    params = init(inner.n_outputs).astype(np.float32)
+    return AutogradLayer(inner, f=np.add, params=params)
 
 def Multiplier(inner, multiplier):
     multiplier = np.asarray(multiplier, dtype=np.float32)
@@ -71,7 +57,4 @@ def Tanh(inner):
     return AutogradLayer(inner, f=np.tanh)
 
 def Affine(inner, n_outputs):
-    return Multiplier(
-        Bias(Linear(inner, n_outputs)),
-        1.0 / np.sqrt(inner.n_outputs + 1)
-    )
+    return Bias(Linear(inner, n_outputs))

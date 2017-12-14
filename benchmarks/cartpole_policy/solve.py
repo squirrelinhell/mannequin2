@@ -40,6 +40,7 @@ class Policy(object):
             return backprop(grad)
 
         self.n_params = model.n_params
+        self.get_params = model.get_params
         self.load_params = model.load_params
         self.sample = sample
         self.param_gradient = param_gradient
@@ -79,7 +80,7 @@ def run(render=False):
     policy = Policy(env.observation_space, env.action_space)
 
     opt = Adams(
-        np.random.randn(policy.n_params) * 0.1,
+        policy.get_params(),
         lr=0.00005,
         horizon=5,
         epsilon=4e-8

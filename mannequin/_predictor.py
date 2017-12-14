@@ -18,9 +18,8 @@ class SimplePredictor(object):
             model = Tanh(Affine(model, hid_size))
         model = Affine(model, out_size)
 
-        # Initialize parameters
-        opt = Adam(np.random.randn(model.n_params) * 0.1)
-        model.load_params(opt.get_value())
+        # Use default parameter initialization
+        opt = Adam(model.get_params())
 
         if normalize_inputs:
             normalize = RunningNormalize(shape=(in_size,))
@@ -45,7 +44,7 @@ class SimplePredictor(object):
             else:
                 return outs
 
-        def sgd_step(traj, labels=None, *, lr=0.05):
+        def sgd_step(traj, labels=None, *, lr=0.04):
             if labels is not None:
                 traj = Trajectory(traj, labels)
                 del labels
