@@ -7,9 +7,9 @@ import numpy as np
 import gym
 
 sys.path.append("../..")
-from mannequin import RunningNormalize, Adams
+from mannequin import RunningNormalize, Adams, bar
 from mannequin.basicnet import Input, Affine, LReLU
-from mannequin.gym import episode
+from mannequin.gym import PrintRewards, episode
 
 class Policy(object):
     def __init__(self, ob_space, ac_space):
@@ -77,6 +77,7 @@ def start_render_thread(opt):
 
 def run(render=False):
     env = gym.make("CartPole-v1")
+
     policy = Policy(env.observation_space, env.action_space)
 
     opt = Adams(
@@ -88,15 +89,17 @@ def run(render=False):
 
     if render:
         start_render_thread(opt)
+        env = PrintRewards(env, print=lambda s, r: print(bar(r, 500.0)))
+    else:
+        print("# steps reward")
+        env = PrintRewards(env)
 
     normalize = RunningNormalize(horizon=10)
 
-    print("# episode reward", flush=True)
-    for ep in range(1, 201):
+    while env.total_steps < 40000:
         # Run one episode using current policy
         policy.load_params(opt.get_value())
         traj = episode(env, policy.sample)
-        print("%d %.4f" % (ep, np.sum(traj.r)), flush=True)
 
         # Policy gradient step
         traj = traj.discounted(horizon=500)
