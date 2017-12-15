@@ -13,9 +13,6 @@ from mannequin.gym import NormalizedObservations, PrintRewards, episode
 
 from gae import GAE
 
-def sanitize(arr):
-    return np.array([float(v) for v in arr.reshape(-1)]).reshape(arr.shape)
-
 def GaussLogDensity(inner):
     import autograd.numpy as np
     from mannequin.autograd import AutogradLayer
@@ -37,21 +34,44 @@ def GaussLogDensity(inner):
     layer.sample = sample
     return layer
 
+def ppo():
+    import autograd.numpy as np
+    from mannequin.autograd import Input, AutogradLayer
+    old_logprobs = np.zeros(64, dtype=np.float32)
+    atarg = np.zeros(64, dtype=np.float32)
+    def f(inps):
+        adv = atarg.reshape(inps.shape)
+        ratio = np.exp(inps - old_logprobs.reshape(inps.shape))
+        surr1 = np.multiply(ratio, adv)
+        surr2 = np.clip(ratio, 0.8, 1.2) * adv
+        return np.minimum(surr1, surr2)
+    input_layer = Input(1)
+    loss = AutogradLayer(input_layer, f=f)
+    def grad(logprobs, old_logprobs_v, atarg_v):
+        old_logprobs[:] = old_logprobs_v
+        atarg[:] = atarg_v
+        _, backprop = loss.evaluate(logprobs)
+        backprop(np.ones(64, dtype=np.float32) / -64.0)
+        return -input_layer.last_gradient.reshape(-1)
+    return grad
+ppo = ppo()
+
 class Policy(object):
     def __init__(self, ob_space, ac_space):
         model = Input(ob_space.low.size)
         model = Tanh(Affine(model, 64))
         model = Tanh(Affine(model, 64))
-        model_mean = Affine(model, ac_space.low.size)
-        model = GaussLogDensity(model_mean)
+        model = Affine(model, ac_space.low.size)
+        model = GaussLogDensity(model)
 
-        def param_gradient(inps, sampled, density_grad):
-            model.sampled = sanitize(sampled)
-            outs, backprop = model.evaluate(inps)
-            return backprop(density_grad)
+        def param_gradient(traj, baseline):
+            model.sampled = traj.a
+            outs, backprop = model.evaluate(traj.o)
+            grad = ppo(outs, baseline, traj.r)
+            return backprop(grad)
 
         def logprobs(inps, sampled):
-            model.sampled = sanitize(sampled)
+            model.sampled = sampled
             outs, backprop = model.evaluate(inps)
             return outs.reshape(-1)
 
@@ -61,33 +81,6 @@ class Policy(object):
         self.sample = model.sample
         self.param_gradient = param_gradient
         self.logprobs = logprobs
-
-class PPO(object):
-    def __init__(self):
-        import autograd.numpy as np
-        from mannequin.autograd import Input, AutogradLayer
-
-        old_logprobs = np.zeros(64, dtype=np.float32)
-        atarg = np.zeros(64, dtype=np.float32)
-
-        def f(inps):
-            adv = atarg.reshape(inps.shape)
-            ratio = np.exp(inps - old_logprobs.reshape(inps.shape))
-            surr1 = np.multiply(ratio, adv)
-            surr2 = np.clip(ratio, 0.8, 1.2) * adv
-            return np.minimum(surr1, surr2)
-
-        input_layer = Input(1)
-        loss = AutogradLayer(input_layer, f=f)
-
-        def logprobs_grad(logprobs, old_logprobs_v, atarg_v):
-            old_logprobs[:] = old_logprobs_v
-            atarg[:] = atarg_v
-            _, backprop = loss.evaluate(logprobs)
-            backprop(np.ones(64, dtype=np.float32) / -64.0)
-            return -input_layer.last_gradient.reshape(-1)
-
-        self.logprobs_grad = logprobs_grad
 
 def start_render_thread(env, opt):
     def shared_array(shape):
@@ -130,11 +123,10 @@ def run(render=False):
     env = gym.make("BipedalWalker-v2")
     env = NormalizedObservations(env)
 
-    agent = Policy(env.observation_space, env.action_space)
-    ppo = PPO()
+    policy = Policy(env.observation_space, env.action_space)
 
     opt = Adam(
-        agent.get_params(),
+        policy.get_params(),
         epsilon=1e-5,
         lr=0.003
     )
@@ -150,16 +142,14 @@ def run(render=False):
     gae = GAE(env)
 
     for _ in range(200):
-        agent.load_params(opt.get_value())
-        traj = gae.get_chunk(agent.sample, 2048)
+        policy.load_params(opt.get_value())
+        traj = gae.get_chunk(policy.sample, 2048)
 
-        baseline = agent.logprobs(traj.o, traj.a)
+        baseline = policy.logprobs(traj.o, traj.a)
         for _ in range(320):
-            agent.load_params(opt.get_value())
+            policy.load_params(opt.get_value())
             idx = np.random.randint(len(traj), size=64)
-            logprobs = agent.logprobs(traj.o[idx], traj.a[idx])
-            logprobs_grad = ppo.logprobs_grad(logprobs, baseline[idx], traj.r[idx])
-            grad = agent.param_gradient(traj.o[idx], traj.a[idx], logprobs_grad)
+            grad = policy.param_gradient(traj[idx], baseline[idx])
             opt.apply_gradient(grad)
 
 if __name__ == "__main__":
