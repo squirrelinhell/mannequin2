@@ -8,43 +8,63 @@ import gym
 
 sys.path.append("../..")
 from mannequin import Adam, bar
-from mannequin.basicnet import Input, Tanh, Affine
+from mannequin.basicnet import Layer, Input, Tanh, Affine
 from mannequin.gym import NormalizedObservations, PrintRewards, episode
 
 from gae import GAE
 
-def GaussLogDensity(inner):
-    import autograd.numpy as np
-    from mannequin.autograd import AutogradLayer
+class GaussLogDensity(Layer):
+    def __init__(self, inner):
+        logstd = np.zeros(inner.n_outputs, dtype=np.float32)
 
-    params = np.zeros(inner.n_outputs)
-    def density(mean, logstd):
-        return -0.5 * np.sum(
-            logstd + np.square((layer.sampled - mean) / np.exp(logstd)),
-            axis=-1,
-            keepdims=True
-        )
+        def evaluate(inps, sample, **kwargs):
+            sample = np.asarray(sample, dtype=np.float32)
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
+            inps = np.asarray(inps, dtype=np.float32)
+            assert inps.shape == sample.shape
+            def backprop(grad):
+                nonlocal inps
+                inps = np.reshape(inps, (-1, inner.n_outputs))
+                grad = np.reshape(grad, (-1, 1))
+                return np.concatenate((
+                    inner_backprop(np.multiply(
+                        grad,
+                        np.multiply(np.exp(-2.0*logstd), sample - inps)
+                    )),
+                    np.mean(np.multiply(
+                        grad,
+                        np.multiply(
+                            np.exp(-2.0*logstd),
+                            np.square(sample - inps)
+                        ) - 0.5
+                    ), axis=0)
+                ), axis=0)
+            return -0.5 * np.sum(
+                logstd + np.square((sample - inps) / np.exp(logstd)),
+                axis=-1,
+                keepdims=True
+            ), backprop
 
-    def sample(obs):
-        m, _ = inner.evaluate(obs)
-        layer.sampled = m + np.random.randn(*m.shape) * np.exp(params)
-        return layer.sampled
-
-    layer = AutogradLayer(inner, f=density, n_outputs=1, params=params)
-    layer.sample = sample
-    return layer
+        super().__init__(inner, evaluate=evaluate, n_outputs=1,
+            params=logstd)
+        self.get_logstd = lambda: logstd[:]
 
 class Policy(object):
     def __init__(self, ob_space, ac_space):
-        model = Input(ob_space.low.size)
-        model = Tanh(Affine(model, 64))
-        model = Tanh(Affine(model, 64))
-        model = Affine(model, ac_space.low.size)
-        model = GaussLogDensity(model)
+        rng = np.random.RandomState()
+
+        mean = Input(ob_space.low.size)
+        mean = Tanh(Affine(mean, 64))
+        mean = Tanh(Affine(mean, 64))
+        mean = Affine(mean, ac_space.low.size)
+        density = GaussLogDensity(mean)
+
+        def sample(obs):
+            m, _ = mean.evaluate(obs)
+            return m + rng.randn(*m.shape) * np.exp(density.get_logstd())
 
         def param_gradient(traj, baseline):
-            model.sampled = traj.a
-            outs, backprop = model.evaluate(traj.o)
+            outs, backprop = density.evaluate(traj.o, sample=traj.a)
             outs = outs.reshape(-1)
             grad = np.exp(outs - baseline)
             grad[np.logical_and(grad > 1.2, traj.r > 0.0)] = 0.0
@@ -52,15 +72,14 @@ class Policy(object):
             grad *= traj.r
             return backprop(grad)
 
-        def baseline(inps, sampled):
-            model.sampled = sampled
-            outs, backprop = model.evaluate(inps)
+        def baseline(inps, sample):
+            outs, _ = density.evaluate(inps, sample=sample)
             return outs.reshape(-1)
 
-        self.n_params = model.n_params
-        self.get_params = model.get_params
-        self.load_params = model.load_params
-        self.sample = model.sample
+        self.n_params = density.n_params
+        self.get_params = density.get_params
+        self.load_params = density.load_params
+        self.sample = sample
         self.param_gradient = param_gradient
         self.baseline = baseline
 

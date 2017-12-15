@@ -8,9 +8,9 @@ class AutogradLayer(Layer):
     def __init__(self, inner, *, f, params=None, **args):
         df = autograd.grad(lambda args, grad: np.sum(f(*args) * grad))
 
-        def evaluate(inps):
+        def evaluate(inps, **kwargs):
             inps = np.asarray(inps, dtype=np.float32)
-            inps, inner_backprop = inner.evaluate(inps)
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
             assert inps.shape == (*inps.shape[:-1], inner.n_outputs)
             outs = f(inps) if params is None else f(inps, params)
             outs = np.asarray(outs, dtype=np.float32)

@@ -59,17 +59,22 @@ class RunningNormalize(object):
 
         def apply(value):
             if n_samples < 2:
-                return np.zeros_like(value)
+                return np.zeros_like(value, dtype=np.float64)
             return (
                 (value - r_mean.get())
                 / np.maximum(1e-8, np.sqrt(r_var.get()))
             )
 
+        def get_var():
+            if n_samples < 2:
+                return np.ones(shape, dtype=np.float64)
+            return r_var.get()
+
         self.update = update
         self.apply = apply
         self.get_mean = lambda: r_mean.get()
-        self.get_var = lambda: r_var.get()
-        self.get_std = lambda: np.sqrt(r_var.get())
+        self.get_var = get_var
+        self.get_std = lambda: np.sqrt(get_var())
 
     def __call__(self, value):
         self.update(value)

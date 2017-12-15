@@ -63,12 +63,11 @@ class Linear(Layer):
         params = init(inner.n_outputs, n_outputs).astype(np.float32)
         multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
 
-        def evaluate(inps):
-            inps, inner_backprop = inner.evaluate(inps)
+        def evaluate(inps, **kwargs):
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
             def backprop(grad):
                 nonlocal inps
                 inps = np.reshape(inps, (-1, inner.n_outputs))
-                grad = np.asarray(grad, dtype=np.float32)
                 grad = np.reshape(grad, (-1, n_outputs)) * multiplier
                 return np.concatenate((
                     inner_backprop(np.dot(grad, params.T)),
@@ -83,8 +82,8 @@ class Bias(Layer):
     def __init__(self, inner, *, init=np.zeros):
         params = init(inner.n_outputs).astype(np.float32)
 
-        def evaluate(inps):
-            inps, inner_backprop = inner.evaluate(inps)
+        def evaluate(inps, **kwargs):
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
             def backprop(grad):
                 grad = np.reshape(grad, (-1, inner.n_outputs))
                 return np.concatenate((
@@ -99,12 +98,10 @@ class Multiplier(Layer):
     def __init__(self, inner, multiplier):
         multiplier = np.asarray(multiplier, dtype=np.float32)
 
-        def evaluate(inps):
-            inps, inner_backprop = inner.evaluate(inps)
+        def evaluate(inps, **kwargs):
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
             def backprop(grad):
-                return inner_backprop(
-                    np.multiply(grad, multiplier)
-                )
+                return inner_backprop(np.multiply(grad, multiplier))
             return np.multiply(inps, multiplier), backprop
 
         super().__init__(inner, evaluate=evaluate)
@@ -113,8 +110,8 @@ class LReLU(Layer):
     def __init__(self, inner, *, leak=0.1):
         leak = float(leak)
 
-        def evaluate(inps):
-            inps, inner_backprop = inner.evaluate(inps)
+        def evaluate(inps, **kwargs):
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
             negative = inps < 0.0
             def backprop(grad):
                 grad = np.array(grad)
@@ -128,8 +125,8 @@ class LReLU(Layer):
 
 class Tanh(Layer):
     def __init__(self, inner):
-        def evaluate(inps):
-            inps, inner_backprop = inner.evaluate(inps)
+        def evaluate(inps, **kwargs):
+            inps, inner_backprop = inner.evaluate(inps, **kwargs)
             tanh = np.tanh(inps)
             def backprop(grad):
                 dtanh = 1.0 - np.square(tanh)
