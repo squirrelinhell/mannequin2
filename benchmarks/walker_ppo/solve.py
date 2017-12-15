@@ -34,28 +34,6 @@ def GaussLogDensity(inner):
     layer.sample = sample
     return layer
 
-def ppo():
-    import autograd.numpy as np
-    from mannequin.autograd import Input, AutogradLayer
-    old_logprobs = np.zeros(64, dtype=np.float32)
-    atarg = np.zeros(64, dtype=np.float32)
-    def f(inps):
-        adv = atarg.reshape(inps.shape)
-        ratio = np.exp(inps - old_logprobs.reshape(inps.shape))
-        surr1 = np.multiply(ratio, adv)
-        surr2 = np.clip(ratio, 0.8, 1.2) * adv
-        return np.minimum(surr1, surr2)
-    input_layer = Input(1)
-    loss = AutogradLayer(input_layer, f=f)
-    def grad(logprobs, old_logprobs_v, atarg_v):
-        old_logprobs[:] = old_logprobs_v
-        atarg[:] = atarg_v
-        _, backprop = loss.evaluate(logprobs)
-        backprop(np.ones(64, dtype=np.float32) / -64.0)
-        return -input_layer.last_gradient.reshape(-1)
-    return grad
-ppo = ppo()
-
 class Policy(object):
     def __init__(self, ob_space, ac_space):
         model = Input(ob_space.low.size)
@@ -67,10 +45,14 @@ class Policy(object):
         def param_gradient(traj, baseline):
             model.sampled = traj.a
             outs, backprop = model.evaluate(traj.o)
-            grad = ppo(outs, baseline, traj.r)
+            outs = outs.reshape(-1)
+            grad = np.exp(outs - baseline)
+            grad[np.logical_and(grad > 1.2, traj.r > 0.0)] = 0.0
+            grad[np.logical_and(grad < 0.8, traj.r < 0.0)] = 0.0
+            grad *= traj.r
             return backprop(grad)
 
-        def logprobs(inps, sampled):
+        def baseline(inps, sampled):
             model.sampled = sampled
             outs, backprop = model.evaluate(inps)
             return outs.reshape(-1)
@@ -80,7 +62,7 @@ class Policy(object):
         self.load_params = model.load_params
         self.sample = model.sample
         self.param_gradient = param_gradient
-        self.logprobs = logprobs
+        self.baseline = baseline
 
 def start_render_thread(env, opt):
     def shared_array(shape):
@@ -145,7 +127,7 @@ def run(render=False):
         policy.load_params(opt.get_value())
         traj = gae.get_chunk(policy.sample, 2048)
 
-        baseline = policy.logprobs(traj.o, traj.a)
+        baseline = policy.baseline(traj.o, traj.a)
         for _ in range(320):
             policy.load_params(opt.get_value())
             idx = np.random.randint(len(traj), size=64)
