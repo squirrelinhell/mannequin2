@@ -52,6 +52,9 @@ class NormalizedObservations(gym.Wrapper):
             return obs, reward, done, info
 
         self._step = do_step
+        self.get_mean = normalize.get_mean
+        self.get_var = normalize.get_var
+        self.get_std = normalize.get_std
 
 class PrintRewards(gym.Wrapper):
     def __init__(self, env, every=1000, print=print):

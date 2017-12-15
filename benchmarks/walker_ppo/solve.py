@@ -89,7 +89,7 @@ class PPO(object):
 
         self.logprobs_grad = logprobs_grad
 
-def start_render_thread(opt):
+def start_render_thread(env, opt):
     def shared_array(shape):
         size = int(np.prod(shape))
         buf = multiprocessing.Array(ctypes.c_double, size)
@@ -97,15 +97,19 @@ def start_render_thread(opt):
         return arr.reshape(shape)
 
     shared_params = shared_array(opt.get_value().size)
+    shared_mean = shared_array(env.get_mean().size)
+    shared_std = shared_array(env.get_std().size)
 
     def render_loop():
         env = gym.make("BipedalWalker-v2")
-        env = NormalizedObservations(env)
         policy = Policy(env.observation_space, env.action_space)
+        def action(obs):
+            obs = (obs - shared_mean) / np.maximum(1e-8, shared_std)
+            return policy.sample(obs)
         while True:
             policy.load_params(shared_params)
             try:
-                episode(env, policy.sample, render=True, max_steps=400)
+                episode(env, action, render=True, max_steps=400)
             except:
                 pass
 
@@ -113,6 +117,8 @@ def start_render_thread(opt):
     def apply_and_update(*args, **kwargs):
         orig_apply(*args, **kwargs)
         shared_params[:] = opt.get_value()
+        shared_mean[:] = env.get_mean()
+        shared_std[:] = env.get_std()
     opt.apply_gradient = apply_and_update
 
     multiprocessing.Process(
@@ -134,11 +140,12 @@ def run(render=False):
     )
 
     if render:
-        start_render_thread(opt)
-        env = PrintRewards(env, print=lambda s, r: print(bar(r, 300.0)))
+        start_render_thread(env, opt)
+        env = PrintRewards(env, every=2048,
+            print=lambda s, r: print(bar(r, 300.0)))
     else:
         print("# steps reward")
-        env = PrintRewards(env)
+        env = PrintRewards(env, every=2048)
 
     gae = GAE(env)
 
