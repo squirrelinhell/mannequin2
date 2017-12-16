@@ -68,7 +68,8 @@ def add_plot(ax, xs, ys, mean=False, **kwargs):
         ax.plot(xy[:,0], xy[:,1], ".", markersize=10,
             alpha=0.5, zorder=1, **kwargs)
 
-def build_plot(input_file, *columns, **opts):
+def build_plot(input_file, *columns,
+        xmin=None, xmax=None, ymin=None, ymax=None, **opts):
     import matplotlib.pyplot as plt
 
     data, data_len = read_file(input_file)
@@ -114,6 +115,17 @@ def build_plot(input_file, *columns, **opts):
         for n, v in columns[:2]
     ]
 
+    def minmax(vs, def_min, def_max):
+        finite = vs[np.isfinite(vs)]
+        if def_min is None:
+            def_min = np.nanmin(finite)
+        if def_max is None:
+            def_max = np.nanmax(finite)
+        return float(def_min), float(def_max)
+
+    xmin, xmax = minmax(xs[1], xmin, xmax)
+    ymin, ymax = minmax(ys[1], ymin, ymax)
+
     cls_columns = []
     for n, v in columns[2:]:
         v = np.array([str(i) for i in v], dtype=str)
@@ -121,20 +133,18 @@ def build_plot(input_file, *columns, **opts):
         if len(cls) >= 2:
             cls_columns.append((n, v, cls))
 
-    def format_ax(prop, label, vs):
+    def format_ax(prop, label, minv, maxv):
         if label[:4] == "log(":
             label = label[4:-1]
             prop("set_%sscale")("log", nonposx="clip", nonposy="clip")
-            vs = vs[np.logical_and(vs > 0.0, np.isfinite(vs))]
-            if len(vs) >= 1:
+            if maxv > minv and minv > 0.0:
                 prop("set_%slim")(*np.power(10.0, [
-                    min(0.0, np.floor(np.log10(np.min(vs)))),
-                    max(0.0, np.ceil(np.log10(np.max(vs))))
+                    min(0.0, np.floor(np.log10(minv))),
+                    max(0.0, np.ceil(np.log10(maxv)))
                 ]))
         else:
-            lims = [min(0.0, np.nanmin(vs)), max(0.0, np.nanmax(vs))]
-            if lims[1] > lims[0]:
-                prop("set_%slim")(*lims)
+            if maxv > minv:
+                prop("set_%slim")(minv, maxv)
 
         prop("set_%slabel")("" if label == "$0" else label)
 
@@ -153,8 +163,8 @@ def build_plot(input_file, *columns, **opts):
                 )
             ax.legend(loc=3, title=cls_column[0])
         ax.grid()
-        format_ax(lambda prop: getattr(ax, prop % "x"), *xs)
-        format_ax(lambda prop: getattr(ax, prop % "y"), *ys)
+        format_ax(lambda prop: getattr(ax, prop % "x"), xs[0], xmin, xmax)
+        format_ax(lambda prop: getattr(ax, prop % "y"), ys[0], ymin, ymax)
 
     fig, axes = plt.subplots(
         nrows=1 if len(cls_columns) < 3 else len(cls_columns[2][2]),
@@ -185,8 +195,16 @@ def run(*args):
 
     opts = {}
     while (len(args) >= 1) and (args[0][:2] == "--"):
-        opts[args[0][2:]] = True
+        if "=" in args[0]:
+            k, v = args[0][2:].split("=", 1)
+            opts[k] = v
+        else:
+            opts[args[0][2:]] = True
         args = args[1:]
+
+    if len(args) < 1:
+        print_help()
+        return
 
     if "PLOT_FILE" in os.environ and len(os.environ["PLOT_FILE"]) >= 1:
         plot_file = os.environ["PLOT_FILE"]

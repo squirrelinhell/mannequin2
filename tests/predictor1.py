@@ -9,9 +9,13 @@ for _ in range(100):
     x = np.random.randn(128) * 2.0
     pred.sgd_step(x, np.sin(x))
 
+assert pred.predict(1.0).shape == ()
+
 x = np.linspace(-5.0, 5.0, 101)
-error = np.mean(np.abs(pred.predict(x) - np.sin(x)))
+y = pred.predict(x)
+assert y.shape == x.shape
+error = np.mean(np.abs(y - np.sin(x)))
 sys.stderr.write("Mean error: %.4f\n" % error)
 assert error < 0.2
 
-assert timer() < 0.3
+assert timer() < 0.31

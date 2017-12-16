@@ -32,8 +32,8 @@ class SimplePredictor(object):
 
         def predict(inputs):
             inputs = np.asarray(inputs)
-            if in_size == 1 and inputs.shape[-1] != 1:
-                inputs = inputs.reshape((-1, 1))
+            if in_size == 1 and inputs.shape[-1:] != (1,):
+                inputs = inputs.reshape(inputs.shape + (1,))
             if normalize_inputs:
                 inputs = normalize.apply(inputs)
             outs, _ = model.evaluate(inputs)
@@ -49,8 +49,8 @@ class SimplePredictor(object):
                 traj = Trajectory(traj, labels)
                 del labels
             assert isinstance(traj, Trajectory)
-            inps = traj.o.reshape((-1, 1)) if in_size == 1 else traj.o
-            lbls = traj.a.reshape((-1, 1)) if out_size == 1 else traj.a
+            inps = traj.o.reshape((-1, in_size))
+            lbls = traj.a.reshape((-1, out_size))
             inps = normalize(inps) if normalize_inputs else inps
             outs, backprop = model.evaluate(inps)
             if classifier:

@@ -68,5 +68,5 @@ def LReLU(inner, leak=0.1):
 def Tanh(inner):
     return AutogradLayer(inner, f=np.tanh)
 
-def Affine(inner, n_outputs):
-    return Bias(Linear(inner, n_outputs))
+def Affine(*args, **kwargs):
+    return Bias(Linear(*args, **kwargs))

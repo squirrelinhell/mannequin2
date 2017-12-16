@@ -59,9 +59,14 @@ def equalized_columns(inps, outs):
     return m / np.sqrt(np.mean(np.square(m), axis=0))
 
 class Linear(Layer):
-    def __init__(self, inner, n_outputs, *, init=equalized_columns):
+    def __init__(self, inner, n_outputs, *,
+            init=equalized_columns, multiplier=None):
         params = init(inner.n_outputs, n_outputs).astype(np.float32)
-        multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
+
+        if multiplier is None:
+            multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
+        else:
+            multiplier = float(multiplier)
 
         def evaluate(inps, **kwargs):
             inps, inner_backprop = inner.evaluate(inps, **kwargs)
@@ -135,5 +140,5 @@ class Tanh(Layer):
 
         super().__init__(inner, evaluate=evaluate)
 
-def Affine(inner, n_outputs):
-    return Bias(Linear(inner, n_outputs))
+def Affine(*args, **kwargs):
+    return Bias(Linear(*args, **kwargs))

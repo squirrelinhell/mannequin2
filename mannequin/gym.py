@@ -49,6 +49,7 @@ class NormalizedObservations(gym.Wrapper):
         def do_step(action):
             obs, reward, done, info = self.env._step(action)
             obs = normalize(obs)
+            obs = np.clip(obs, -5.0, 5.0)
             return obs, reward, done, info
 
         self._step = do_step

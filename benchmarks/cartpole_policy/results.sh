@@ -6,6 +6,7 @@ export PATH="../_utils:$PATH"
 VARIANTS=$(code-variants --print --copies 100 --run ./solve.py __variants) || exit 1
 
 for v in $VARIANTS; do
+    info="${v%_*}"
     ( read -r line && echo "$line variant" && \
         while read -r line; do echo "$line $v"; done ) < "__variants/$v.out"
 done > __variants/all

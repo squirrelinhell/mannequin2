@@ -50,7 +50,7 @@ class GAE(object):
             learn_traj = Trajectory(traj.o, (adv + value)[:length])
             for _ in range(320):
                 idx = np.random.randint(len(learn_traj), size=64)
-                value_predictor.sgd_step(learn_traj[idx], lr=0.001)
+                value_predictor.sgd_step(learn_traj[idx], lr=0.0006)
 
             if normalize:
                 return traj.modified(rewards=normalized)

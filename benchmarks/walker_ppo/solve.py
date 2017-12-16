@@ -28,7 +28,7 @@ class GaussLogDensity(AutogradLayer):
             )
 
         super().__init__(inner, f=f, n_outputs=1, params=logstd)
-        self.get_logstd = lambda: logstd[:]
+        self.get_std = lambda: np.exp(logstd[:])
 
 class Policy(object):
     def __init__(self, ob_space, ac_space):
@@ -42,14 +42,14 @@ class Policy(object):
 
         def sample(obs):
             m, _ = mean.evaluate(obs)
-            return m + rng.randn(*m.shape) * np.exp(density.get_logstd())
+            return m + rng.randn(*m.shape) * density.get_std()
 
-        def param_gradient(traj, baseline):
+        def param_gradient(traj, baseline, clip=0.2):
             outs, backprop = density.evaluate(traj.o, sample=traj.a)
             outs = outs.reshape(-1)
             grad = np.exp(outs - baseline)
-            grad[np.logical_and(grad > 1.2, traj.r > 0.0)] = 0.0
-            grad[np.logical_and(grad < 0.8, traj.r < 0.0)] = 0.0
+            grad[np.logical_and(grad > 1.0 + clip, traj.r > 0.0)] = 0.0
+            grad[np.logical_and(grad < 1.0 - clip, traj.r < 0.0)] = 0.0
             grad *= traj.r
             return backprop(grad)
 
@@ -106,12 +106,7 @@ def run(render=False):
     env = NormalizedObservations(env)
 
     policy = Policy(env.observation_space, env.action_space)
-
-    opt = Adam(
-        policy.get_params(),
-        epsilon=1e-5,
-        lr=0.003
-    )
+    opt = Adam(policy.get_params())
 
     if render:
         start_render_thread(env, opt)
@@ -132,7 +127,7 @@ def run(render=False):
             policy.load_params(opt.get_value())
             idx = np.random.randint(len(traj), size=64)
             grad = policy.param_gradient(traj[idx], baseline[idx])
-            opt.apply_gradient(grad)
+            opt.apply_gradient(grad, lr=0.0003)
 
 if __name__ == "__main__":
     run(**{a[2:]: True for a in __import__("sys").argv[1:]})
