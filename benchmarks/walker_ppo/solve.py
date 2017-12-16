@@ -9,44 +9,25 @@ import gym
 sys.path.append("../..")
 from mannequin import Adam, bar
 from mannequin.basicnet import Layer, Input, Tanh, Affine
+from mannequin.autograd import AutogradLayer
 from mannequin.gym import NormalizedObservations, PrintRewards, episode
 
 from gae import GAE
 
-class GaussLogDensity(Layer):
+class GaussLogDensity(AutogradLayer):
     def __init__(self, inner):
+        import autograd.numpy as np
+
         logstd = np.zeros(inner.n_outputs, dtype=np.float32)
 
-        def evaluate(inps, sample, **kwargs):
-            sample = np.asarray(sample, dtype=np.float32)
-            inps, inner_backprop = inner.evaluate(inps, **kwargs)
-            inps = np.asarray(inps, dtype=np.float32)
-            assert inps.shape == sample.shape
-            def backprop(grad):
-                nonlocal inps
-                inps = np.reshape(inps, (-1, inner.n_outputs))
-                grad = np.reshape(grad, (-1, 1))
-                return np.concatenate((
-                    inner_backprop(np.multiply(
-                        grad,
-                        np.multiply(np.exp(-2.0*logstd), sample - inps)
-                    )),
-                    np.mean(np.multiply(
-                        grad,
-                        np.multiply(
-                            np.exp(-2.0*logstd),
-                            np.square(sample - inps)
-                        ) - 0.5
-                    ), axis=0)
-                ), axis=0)
+        def f(inps, logstd, *, sample):
             return -0.5 * np.sum(
                 logstd + np.square((sample - inps) / np.exp(logstd)),
                 axis=-1,
                 keepdims=True
-            ), backprop
+            )
 
-        super().__init__(inner, evaluate=evaluate, n_outputs=1,
-            params=logstd)
+        super().__init__(inner, f=f, n_outputs=1, params=logstd)
         self.get_logstd = lambda: logstd[:]
 
 class Policy(object):
