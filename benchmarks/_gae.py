@@ -1,10 +1,12 @@
 
+import numpy as np
+
+from mannequin import Trajectory, SimplePredictor
+from mannequin.gym import one_step
+
 class GAE(object):
     def __init__(self, env, *,
             gam=0.99, lam=0.95, normalize=True):
-        import numpy as np
-        from mannequin import Trajectory, SimplePredictor
-        from mannequin.gym import one_step
 
         rng = np.random.RandomState()
         hist = []

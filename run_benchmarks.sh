@@ -25,7 +25,6 @@ for file in $FILES; do
     esac
 
     OUT_DIR="benchmarks/__results_$NAME"
-
     VARIANTS=$(code-variants --print \
         --run --copies "$COPIES" "$file" "$OUT_DIR") || exit
 done
@@ -39,7 +38,7 @@ for dir in $(find benchmarks -maxdepth 1 -type d \
     [ ! -e "$PLOT_FILE" ] || continue
     echo "Plotting $BASENAME..."
     case "$BASENAME" in
-        walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=420000
+        walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=400000
             --ymin=-200 --ymax=300) ;;
         *) PLOT_OPTS=(--mean) ;;
     esac
