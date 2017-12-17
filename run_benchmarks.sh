@@ -24,37 +24,37 @@ for file in $FILES; do
         *) COPIES=16 ;;
     esac
 
-    case "$NAME" in
-        walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=420000
-            --ymin=-200 --ymax=300) ;;
-        *) PLOT_OPTS=(--mean) ;;
-    esac
-
     OUT_DIR="benchmarks/__results_$NAME"
 
     VARIANTS=$(code-variants --print \
         --run --copies "$COPIES" "$file" "$OUT_DIR") || exit
+done
 
+for dir in $(find benchmarks -maxdepth 1 -type d \
+        -name '*results_*' | sort); do
+    BASENAME="${dir##*/}"
+    BASENAME="${BASENAME#__}"
+    BASENAME="${BASENAME#results_}"
+    PLOT_FILE="benchmarks/__$BASENAME.png"
+    [ ! -e "$PLOT_FILE" ] || continue
+    echo "Plotting $BASENAME..."
+    case "$BASENAME" in
+        walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=420000
+            --ymin=-200 --ymax=300) ;;
+        *) PLOT_OPTS=(--mean) ;;
+    esac
+    ONE_FILE=$(ls "$dir" | head -n 1)
     PLOT_COLUMS="reward steps"
-    [ "x${VARIANTS::4}" = xcopy ] || PLOT_COLUMS="$PLOT_COLUMS variant"
-
-    for dir in $OUT_DIR $(find benchmarks -maxdepth 1 -type d \
-            -name "results_${NAME}_"'*'); do
-        BASENAME="${dir##*/}"
-        BASENAME="${BASENAME#__}"
-        BASENAME="${BASENAME#results_}"
-        PLOT_FILE="benchmarks/__$BASENAME.png"
-        [ ! -e "$PLOT_FILE" ] || continue
-        echo "Plotting $BASENAME..."
-        HEADER=$(grep '^#' "$dir/$(head -n 1 <<<"$VARIANTS").out")
-        echo "$HEADER variant" > "$TMPDIR/data"
-        for v in $VARIANTS; do
-            DATA=$(grep -v '^#' "$dir/$v.out") || exit 1
-            while read -r line; do
-                echo "$line ${v%_*}"
-            done <<<"$DATA"
-        done >> "$TMPDIR/data"
-        PLOT_FILE="$PLOT_FILE" marginal-plot "${PLOT_OPTS[@]}" \
-            "$TMPDIR/data" $PLOT_COLUMS || exit 1
-    done
+    [ "x${ONE_FILE::4}" = xcopy ] || PLOT_COLUMS="$PLOT_COLUMS variant"
+    HEADER=$(grep '^#' "$dir/$ONE_FILE")
+    echo "$HEADER variant" > "$TMPDIR/data"
+    for f in $(ls "$dir"); do
+        DATA=$(grep -v '^#' "$dir/$f") || exit 1
+        VARIANT=${f%.out}
+        while read -r line; do
+            echo "$line ${VARIANT%_*}"
+        done <<<"$DATA"
+    done >> "$TMPDIR/data"
+    PLOT_FILE="$PLOT_FILE" marginal-plot "${PLOT_OPTS[@]}" \
+        "$TMPDIR/data" $PLOT_COLUMS || exit 1
 done
