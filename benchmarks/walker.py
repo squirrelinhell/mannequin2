@@ -12,7 +12,7 @@ from mannequin.basicnet import Layer, Input, Tanh, Affine
 from mannequin.autograd import AutogradLayer
 from mannequin.gym import NormalizedObservations, PrintRewards, episode
 
-from gae import GAE
+from _gae import GAE
 
 class GaussLogDensity(AutogradLayer):
     def __init__(self, inner):

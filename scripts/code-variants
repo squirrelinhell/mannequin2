@@ -121,32 +121,38 @@ if [ "${#SOURCES[@]}" -lt 2 ]; then
     exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR" || exit 1
-
-for id in "${!SOURCES[@]}"; do
-    OUTPUT_FILE="$OUTPUT_DIR/${LABELS[$id]}"
-    echo "${SOURCES[$id]}" > "$OUTPUT_FILE" || exit 1
-    chmod "$OUTPUT_FILE" --reference="$INPUT_FILE"
-done
-
 if [ "x$PRINT" != x ]; then
     for label in "${LABELS[@]}"; do
         echo "$label"
     done
 fi
 
-[ "x$RUN" = x1 ] || exit 0
+if [ "x$RUN" != x1 ]; then
+    mkdir -p "$OUTPUT_DIR" || exit 1
+    for id in "${!SOURCES[@]}"; do
+        OUTPUT_FILE="$OUTPUT_DIR/${LABELS[$id]}"
+        echo "${SOURCES[$id]}" > "$OUTPUT_FILE" || exit 1
+        chmod "$OUTPUT_FILE" --reference="$INPUT_FILE"
+    done
+    exit 0
+fi
 
 TMPDIR=$(mktemp -d) || exit 1
 trap "rm -rf $TMPDIR" EXIT
+
+for id in "${!SOURCES[@]}"; do
+    OUTPUT_FILE="$TMPDIR/${LABELS[$id]}.run"
+    echo "${SOURCES[$id]}" > "$OUTPUT_FILE" || exit 1
+    chmod +x "$OUTPUT_FILE"
+done
 
 echo '
 all: $(patsubst %,'"$OUTPUT_DIR"'/%.out, '"${LABELS[@]}"')
 
 '"$OUTPUT_DIR"'/%.out:
 '$'\t''@echo Running variant: $*...
-'$'\t''@chmod +x '"$OUTPUT_DIR"'/$*
-'$'\t''@'"$OUTPUT_DIR"'/$* > '"$TMPDIR"'/$*.out
+'$'\t''@'"$TMPDIR"'/$*.run > '"$TMPDIR"'/$*.out
+'$'\t''@mkdir -p $(dir $@)
 '$'\t''@cp '"$TMPDIR"'/$*.out $@
 ' > "$TMPDIR/makefile"
 

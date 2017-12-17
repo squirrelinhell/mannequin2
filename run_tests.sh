@@ -34,30 +34,31 @@ def setup():
 timer = setup()
 '
 
-if [ "x$1" != x -a "x$2" = x ]; then
+FILES=
+for pattern in "${@:-}"; do
+    FILES="$FILES"$'\n'$(find tests -maxdepth 1 \
+        -name "$pattern"'*.py' -not -name '_*')
+done
+FILES=$(sort -u <<<"$FILES" | grep -v '^$')
+
+if [ $(wc -l <<<"$FILES") = 1 ]; then
     export DEBUG=1
-    TEST_FILE="$1"
-    [ -f "$TEST_FILE" ] || TEST_FILE="tests/$TEST_FILE"
-    [ -f "$TEST_FILE" ] || TEST_FILE="$TEST_FILE.py"
+    [ -f "$FILES" ] || TEST_FILE="tests/$FILES.py"
+    cat "$FILES" > "$TMPDIR/run" || exit 1
     echo "$DEBUG_SETUP" "$TEST_SETUP" > "$TMPDIR/test_setup.py"
-    cat "$TEST_FILE" > "$TMPDIR/run" || exit 1
     exec python3 "$TMPDIR/run"
 fi
 
-TESTS="$@"
-if [ "x$TESTS" = x ]; then
-    TESTS=$(find tests -maxdepth 1 -name '*.py' | sort)
-fi
-
-for test in $TESTS; do
-    [ -f "$test" ] || test="tests/$test"
-    [ -f "$test" ] || test="$test.py"
+for file in $FILES; do
+    [ -f "$file" ] || file="tests/$file.py"
+    NAME="${file##*/}"
+    NAME="${NAME%.*}"
+    echo -n "Running $NAME... "
 
     echo "$TEST_SETUP" > "$TMPDIR/test_setup.py"
-    cat "$test" > "$TMPDIR/run" || exit 1
-    echo -n "Test: $test... "
+    cat "$file" > "$TMPDIR/run" || exit 1
 
-    OUT_FILE="${test%.*}.out"
+    OUT_FILE="${file%.*}.out"
     if [ -f "$OUT_FILE" ]; then
         cat "$OUT_FILE"
     fi > "$TMPDIR/ans"
@@ -72,13 +73,13 @@ for test in $TESTS; do
         echo FAIL
         cat "$TMPDIR/dbg"
         echo
-        echo "EXIT CODE $RESULT: $test"
+        echo "EXIT CODE $RESULT: $file"
         echo
     elif ! diff -b -q "$TMPDIR/ans" "$TMPDIR/out" >/dev/null; then
         echo FAIL
         cat "$TMPDIR/dbg"
         echo
-        echo "INCORRECT OUTPUT: $test"
+        echo "INCORRECT OUTPUT: $file"
         echo
         diff -b --color=auto "$TMPDIR/ans" "$TMPDIR/out"
         echo
