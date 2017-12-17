@@ -6,7 +6,7 @@ import multiprocessing
 import numpy as np
 import gym
 
-sys.path.append("../..")
+sys.path.append("..")
 from mannequin import Adam, bar
 from mannequin.basicnet import Layer, Input, Tanh, Affine
 from mannequin.autograd import AutogradLayer

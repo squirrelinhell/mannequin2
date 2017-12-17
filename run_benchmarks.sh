@@ -25,7 +25,8 @@ for file in $FILES; do
     esac
 
     case "$NAME" in
-        walker*) PLOT_OPTS=(--mean --ymin=-200 --ymax=300) ;;
+        walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=420000
+            --ymin=-200 --ymax=300) ;;
         *) PLOT_OPTS=(--mean) ;;
     esac
 

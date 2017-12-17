@@ -76,7 +76,7 @@ class PrintRewards(gym.Wrapper):
                 ep_rew = None
             if total_steps % every == 0:
                 if len(finished) >= 1:
-                    mean_rew = np.mean(finished)
+                    mean_rew = round(float(np.mean(finished)), 2)
                     finished = []
                 print(total_steps, mean_rew)
             return obs, reward, done, info

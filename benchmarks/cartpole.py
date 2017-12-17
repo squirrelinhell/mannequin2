@@ -6,7 +6,7 @@ import multiprocessing
 import numpy as np
 import gym
 
-sys.path.append("../..")
+sys.path.append("..")
 from mannequin import RunningNormalize, Adams, bar
 from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.gym import PrintRewards, episode
