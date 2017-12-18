@@ -42,7 +42,9 @@ done
 FILES=$(sort -u <<<"$FILES" | grep -v '^$')
 
 if [ $(wc -l <<<"$FILES") = 1 ]; then
+    echo "Running $FILES... " 1>&2
     export DEBUG=1
+    export STOPTIME=1
     [ -f "$FILES" ] || TEST_FILE="tests/$FILES.py"
     cat "$FILES" > "$TMPDIR/run" || exit 1
     echo "$DEBUG_SETUP" "$TEST_SETUP" > "$TMPDIR/test_setup.py"
