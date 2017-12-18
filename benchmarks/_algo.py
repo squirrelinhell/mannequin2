@@ -28,16 +28,19 @@ def policy(env, *, logprob, steps):
         opt.apply_gradient(backprop(traj.r))
         logprob.load_params(opt.get_value())
 
-def ppo(env, *, logprob, steps):
+def ppo(env, *, logprob, steps,
+        lr=0.5, optim_batch=64, optim_steps=300):
     gae = GAE(env)
-    opt = Adam(logprob.get_params(), lr=0.0003)
+    opt = Adam(logprob.get_params())
 
-    for i in range(steps // 2048):
+    while steps > 0:
         traj = gae.get_chunk(logprob.sample, 2048)
+        steps -= len(traj)
+
         baseline, _ = logprob.evaluate(traj.o, sample=traj.a)
 
-        for _ in range(320):
-            idx = np.random.randint(len(traj), size=64)
+        for _ in range(optim_steps):
+            idx = np.random.randint(len(traj), size=optim_batch)
             p, backprop = logprob.evaluate(traj.o[idx],
                 sample=traj.a[idx])
 
@@ -46,5 +49,5 @@ def ppo(env, *, logprob, steps):
             grad[np.logical_and(grad < 0.8, traj.r[idx] < 0.0)] = 0.0
             grad *= traj.r[idx]
 
-            opt.apply_gradient(backprop(grad))
+            opt.apply_gradient(backprop(grad), lr=lr/optim_steps)
             logprob.load_params(opt.get_value())

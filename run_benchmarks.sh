@@ -66,7 +66,7 @@ for plot in $(ls "$TMPDIR/plots"); do
     echo "Plotting $plot..."
     case "$plot" in
         walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=400000
-            --ymin=-200 --ymax=300) ;;
+            --ymin=-200 --ymax=350) ;;
         *) PLOT_OPTS=(--mean) ;;
     esac
     PLOT_FILE="benchmarks/__$plot.png" \
