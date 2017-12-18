@@ -45,10 +45,10 @@ class GaussPolicy(AutogradLayer):
 
         def f(inps, logstd, *, sample):
             return -0.5 * np.sum(
-                logstd + np.square((sample - inps) / np.exp(logstd)),
+                np.square((sample - inps) / np.exp(logstd)),
                 axis=-1,
                 keepdims=True
-            )
+            ) - np.sum(logstd)
 
         super().__init__(inner, f=f, n_outputs=1, params=logstd)
 
