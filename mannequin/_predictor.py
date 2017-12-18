@@ -61,3 +61,6 @@ class SimplePredictor(object):
 
         self.predict = predict
         self.sgd_step = sgd_step
+
+    def __call__(self, inputs):
+        return self.predict(inputs)

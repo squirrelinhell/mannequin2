@@ -12,7 +12,7 @@ for _ in range(100):
 assert pred.predict(1.0).shape == ()
 
 x = np.linspace(-5.0, 5.0, 101)
-y = pred.predict(x)
+y = pred(x)
 assert y.shape == x.shape
 error = np.mean(np.abs(y - np.sin(x)))
 sys.stderr.write("Mean error: %.4f\n" % error)

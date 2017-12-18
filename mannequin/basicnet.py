@@ -54,6 +54,10 @@ class Layer(object):
             self.get_params = get_params
             self.load_params = load_params
 
+    def __call__(self, inps, **kwargs):
+        outs, _ = self.evaluate(inps, **kwargs)
+        return outs
+
 def equalized_columns(inps, outs):
     m = np.random.randn(inps, outs)
     return m / np.sqrt(np.mean(np.square(m), axis=0))

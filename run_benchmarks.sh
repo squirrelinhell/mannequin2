@@ -21,7 +21,7 @@ find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
 FILES=
 for pattern in "${@:-}"; do
     FILES="$FILES"$'\n'$(find "$TMPDIR/scripts" -mindepth 1 \
-        -maxdepth 1 -name '*'"$pattern"'*')
+        -maxdepth 1 -name "$pattern"'*')
 done
 FILES=$(sort -u <<<"$FILES" | grep -v '^$')
 
@@ -39,31 +39,32 @@ for file in $FILES; do
         --run --copies "$COPIES" "$file" "$OUT_DIR/") || exit
 done
 
-for dir in $(find benchmarks -maxdepth 1 -type d \
+mkdir "$TMPDIR/plots"
+for dir in $(find benchmarks -mindepth 1 -maxdepth 1 -type d \
         -name '*results_*' | sort); do
-    BASENAME="${dir##*/}"
-    BASENAME="${BASENAME#__}"
-    BASENAME="${BASENAME#results_}"
-    PLOT_FILE="benchmarks/__$BASENAME.png"
-    [ ! -e "$PLOT_FILE" ] || continue
-    echo "Plotting $BASENAME..."
-    case "$BASENAME" in
+    PLOT="${dir##*/}"
+    PLOT="${PLOT#__}"
+    PLOT="${PLOT#results_}"
+    VARIANT="${PLOT#*_}"
+    PLOT="${PLOT%%_*}"
+    [ -e "$TMPDIR/plots/$PLOT" ] || \
+        echo "# steps reward variant" > "$TMPDIR/plots/$PLOT"
+    cat $(find "$dir" -maxdepth 1 -type f -name '*.out') | \
+        grep -v '^#' | \
+        while read -r steps reward x; do
+            echo "$steps $reward $VARIANT"
+        done \
+        >> "$TMPDIR/plots/$PLOT"
+done
+
+for plot in $(ls "$TMPDIR/plots"); do
+    echo "Plotting $plot..."
+    case "$plot" in
         walker*) PLOT_OPTS=(--mean --xmin=0 --xmax=400000
             --ymin=-200 --ymax=300) ;;
         *) PLOT_OPTS=(--mean) ;;
     esac
-    ONE_FILE=$(ls "$dir" | head -n 1)
-    PLOT_COLUMS="reward steps"
-    [ "x${ONE_FILE::4}" = xcopy ] || PLOT_COLUMS="$PLOT_COLUMS variant"
-    HEADER=$(grep '^#' "$dir/$ONE_FILE")
-    echo "$HEADER variant" > "$TMPDIR/data"
-    for f in $(ls "$dir"); do
-        DATA=$(grep -v '^#' "$dir/$f") || exit 1
-        VARIANT=${f%.out}
-        while read -r line; do
-            echo "$line ${VARIANT%_*}"
-        done <<<"$DATA"
-    done >> "$TMPDIR/data"
-    PLOT_FILE="$PLOT_FILE" marginal-plot "${PLOT_OPTS[@]}" \
-        "$TMPDIR/data" $PLOT_COLUMS || exit 1
+    PLOT_FILE="benchmarks/__$plot.png" \
+        marginal-plot "${PLOT_OPTS[@]}" "$TMPDIR/plots/$plot" \
+            reward steps variant || exit 1
 done

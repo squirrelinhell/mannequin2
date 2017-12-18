@@ -24,7 +24,7 @@ def test_module(net):
 
     x = [0.1, -3.09]
     m = net.Multiplier(m, 5.0)
-    values += check(m, x, [1.0, -1.0])
+    values += [m(x)]
     values += check(net.LReLU(m), x, [1.0, -1.0])
     values += check(net.Tanh(m), x, [1.0, -1.0])
 
