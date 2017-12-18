@@ -6,12 +6,12 @@ import gym
 
 sys.path.append("..")
 from mannequin.basicnet import Input, Affine, Tanh
+from mannequin.logprob import Gauss
 from mannequin.gym import PrintRewards, NormalizedObservations
 
-from _algo import ppo as solve ### policy / ppo
-from _policy import GaussPolicy
-
 def run():
+    from _algo import ppo as solve ### policy / ppo
+
     print("# steps reward")
     env = gym.make("BipedalWalker-v2")
     env = PrintRewards(env, every=2048)
@@ -21,9 +21,9 @@ def run():
     policy = Tanh(Affine(policy, 64))
     policy = Tanh(Affine(policy, 64))
     policy = Affine(policy, env.action_space.low.size)
-    policy = GaussPolicy(policy)
+    policy = Gauss(mean=policy)
 
-    solve(env, policy, steps=400000)
+    solve(env, logprob=policy, steps=400000)
 
 if __name__ == "__main__":
     run()

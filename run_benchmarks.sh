@@ -49,6 +49,11 @@ for dir in $(find benchmarks -mindepth 1 -maxdepth 1 -type d \
     PLOT="${PLOT%%_*}"
     [ -e "$TMPDIR/plots/$PLOT" ] || \
         echo "# steps reward variant" > "$TMPDIR/plots/$PLOT"
+    if [ -e "$TMPDIR/done_${PLOT}_$VARIANT" ]; then
+        echo "Error: conflicting names: '${PLOT}_$VARIANT'" 1>&2
+        exit 1
+    fi
+    touch "$TMPDIR/done_${PLOT}_$VARIANT"
     cat $(find "$dir" -maxdepth 1 -type f -name '*.out') | \
         grep -v '^#' | \
         while read -r steps reward x; do
