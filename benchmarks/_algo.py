@@ -6,7 +6,7 @@ from mannequin.gym import episode
 
 from _gae import GAE
 
-def policy_gradient(env, policy, *, steps):
+def policy(env, policy, *, steps):
     opt = Adams(
         policy.get_params(),
         lr=0.00005,

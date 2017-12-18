@@ -8,7 +8,7 @@ sys.path.append("..")
 from mannequin.basicnet import Input, Affine, Tanh
 from mannequin.gym import PrintRewards, NormalizedObservations
 
-from _algo import ppo as solve ### policy_gradient / ppo
+from _algo import ppo as solve ### policy / ppo
 from _policy import GaussPolicy
 
 def run():

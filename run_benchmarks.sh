@@ -1,22 +1,32 @@
 #!/bin/bash
 
-TMPDIR=$(mktemp -d) || exit 1
-trap "rm -rf $TMPDIR" EXIT
-
 export PYTHONPATH="$(pwd):$(pwd)/benchmarks:$PYTHONPATH"
 export PATH="$(pwd)/scripts:$PATH"
 
+TMPDIR=$(mktemp -d) || exit 1
+trap "rm -rf $TMPDIR" EXIT
+
+mkdir "$TMPDIR/scripts"
+find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
+    while read f; do
+        NAME="${f##*/}"
+        NAME="${NAME%.py}"
+        if grep -F -q '###' "$f"; then
+            code-variants "$f" "$TMPDIR/scripts/${NAME}_"
+        else
+            cat "$f" > "$TMPDIR/scripts/${NAME}"
+        fi
+    done
+
 FILES=
 for pattern in "${@:-}"; do
-    FILES="$FILES"$'\n'$(find benchmarks -maxdepth 1 \
-        -name "$pattern"'*.py' -not -name '_*')
+    FILES="$FILES"$'\n'$(find "$TMPDIR/scripts" -mindepth 1 \
+        -maxdepth 1 -name '*'"$pattern"'*')
 done
 FILES=$(sort -u <<<"$FILES" | grep -v '^$')
 
 for file in $FILES; do
-    [ -f "$file" ] || file="benchmarks/$file.py"
     NAME="${file##*/}"
-    NAME="${NAME%.*}"
     echo "Running $NAME... "
 
     case "$NAME" in
@@ -26,7 +36,7 @@ for file in $FILES; do
 
     OUT_DIR="benchmarks/__results_$NAME"
     VARIANTS=$(code-variants --print \
-        --run --copies "$COPIES" "$file" "$OUT_DIR") || exit
+        --run --copies "$COPIES" "$file" "$OUT_DIR/") || exit
 done
 
 for dir in $(find benchmarks -maxdepth 1 -type d \

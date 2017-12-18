@@ -8,7 +8,7 @@ sys.path.append("..")
 from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.gym import PrintRewards
 
-from _algo import policy_gradient as solve ### policy_gradient / ppo
+from _algo import policy as solve ### policy / ppo
 from _policy import SoftmaxPolicy
 
 def run():
