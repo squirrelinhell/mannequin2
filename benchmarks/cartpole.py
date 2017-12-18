@@ -7,10 +7,10 @@ import gym
 sys.path.append("..")
 from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.logprob import Discrete
-from mannequin.gym import PrintRewards
+from mannequin.gym import PrintRewards, episode
 
 def run():
-    from _algo import policy as solve ### policy / ppo
+    from _algo import policy as optimize ### policy / ppo
 
     print("# steps reward")
     env = gym.make("CartPole-v1")
@@ -21,7 +21,11 @@ def run():
     policy = Affine(policy, env.action_space.n)
     policy = Discrete(logits=policy)
 
-    solve(env, logprob=policy, steps=40000)
+    def trajs():
+        while env.total_steps < 40000:
+            yield episode(env, policy.sample).discounted(horizon=500)
+
+    optimize(logprob=policy, trajs=trajs())
 
 if __name__ == "__main__":
     run()

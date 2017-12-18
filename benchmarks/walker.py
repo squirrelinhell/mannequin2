@@ -10,7 +10,8 @@ from mannequin.logprob import Gauss
 from mannequin.gym import PrintRewards, NormalizedObservations
 
 def run():
-    from _algo import ppo as solve ### policy / ppo
+    from _algo import ppo as optimize ### policy / ppo
+    from _gae import gae
 
     print("# steps reward")
     env = gym.make("BipedalWalker-v2")
@@ -24,7 +25,8 @@ def run():
     policy = Multiplier(policy, 0.1)
     policy = Gauss(mean=policy)
 
-    solve(env, logprob=policy, steps=400000)
+    trajs = gae(env, policy.sample, steps=400000)
+    optimize(logprob=policy, trajs=trajs)
 
 if __name__ == "__main__":
     run()

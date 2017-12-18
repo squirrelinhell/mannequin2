@@ -2,11 +2,16 @@
 import numpy as np
 
 from mannequin import RunningNormalize, Adam, Adams
-from mannequin.gym import episode
 
-from _gae import GAE
+def chunks(trajs, length):
+    buf = []
+    for t in trajs:
+        buf = t if len(buf) <= 0 else buf.joined(t)
+        if len(buf) >= length:
+            yield buf[:length]
+            buf = buf[length:] if len(buf) >= length + 1 else []
 
-def policy(env, *, logprob, steps):
+def policy(*, logprob, trajs):
     opt = Adams(
         logprob.get_params(),
         lr=0.00005,
@@ -16,11 +21,7 @@ def policy(env, *, logprob, steps):
 
     normalize = RunningNormalize(horizon=10)
 
-    while steps > 0:
-        traj = episode(env, logprob.sample)
-        steps -= len(traj)
-
-        traj = traj.discounted(horizon=500)
+    for traj in trajs:
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
 
@@ -28,14 +29,15 @@ def policy(env, *, logprob, steps):
         opt.apply_gradient(backprop(traj.r))
         logprob.load_params(opt.get_value())
 
-def ppo(env, *, logprob, steps,
+def ppo(*, logprob, trajs,
         lr=0.5, optim_batch=64, optim_steps=300):
-    gae = GAE(env)
     opt = Adam(logprob.get_params())
 
-    while steps > 0:
-        traj = gae.get_chunk(logprob.sample, 2048)
-        steps -= len(traj)
+    def normalize(v):
+        return (v - np.mean(v)) / max(1e-6, np.std(v))
+
+    for traj in chunks(trajs, 2048):
+        traj = traj.modified(rewards=normalize)
 
         baseline, _ = logprob.evaluate(traj.o, sample=traj.a)
 

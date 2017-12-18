@@ -18,8 +18,14 @@ find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
         fi
     done
 
+if [ "x$1" = x ]; then
+    echo "Available benchmarks:"
+    ls "$TMPDIR/scripts" | while read line; do echo " * $line"; done
+    exit 1
+fi
+
 FILES=
-for pattern in "${@:-}"; do
+for pattern in "${@}"; do
     FILES="$FILES"$'\n'$(find "$TMPDIR/scripts" -mindepth 1 \
         -maxdepth 1 -name "$pattern"'*')
 done

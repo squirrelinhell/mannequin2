@@ -82,7 +82,8 @@ add_branch() {
     NEW_LABELS=()
     for label in "${LABELS[@]}"; do
         for option in "${options[@]}"; do
-            NEW_LABELS+=( "${label}_$(echo ${option//[^a-zA-Z0-9_.-]/})" )
+            option="${option,,}"
+            NEW_LABELS+=( "${label}_$(echo ${option//[^a-z0-9_.-]/})" )
         done
     done
     LABELS=( "${NEW_LABELS[@]/#_/}" )
