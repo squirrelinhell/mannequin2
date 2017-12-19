@@ -11,7 +11,7 @@ from mannequin.gym import PrintRewards, NormalizedObservations
 
 def run():
     from _algo import ppo as optimize ### policy / ppo
-    from _gae import gae
+    from _adv import gae as target ### discounting / gae
 
     print("# steps reward")
     env = gym.make("BipedalWalker-v2")
@@ -25,8 +25,7 @@ def run():
     policy = Multiplier(policy, 0.1)
     policy = Gauss(mean=policy)
 
-    trajs = gae(env, policy.sample, steps=400000)
-    optimize(logprob=policy, trajs=trajs)
+    optimize(policy, target(env, policy.sample), steps=400000)
 
 if __name__ == "__main__":
     run()

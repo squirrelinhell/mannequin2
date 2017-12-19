@@ -1,48 +1,42 @@
 
 import numpy as np
 
-from mannequin import RunningNormalize, Adam, Adams
+from mannequin import Trajectory, RunningNormalize, Adam, Adams
 
-def chunks(trajs, length):
-    buf = []
-    for t in trajs:
-        buf = t if len(buf) <= 0 else buf.joined(t)
-        if len(buf) >= length:
-            yield buf[:length]
-            buf = buf[length:] if len(buf) >= length + 1 else []
+def get_chunk(experience, length):
+    buf = [next(experience) for _ in range(length)]
+    return Trajectory(*zip(*buf))
 
-def policy(*, logprob, trajs):
-    opt = Adams(
-        logprob.get_params(),
-        lr=0.00005,
-        horizon=5,
-        epsilon=4e-8
-    )
+def policy(logprob, experience, *, steps):
+    opt = Adam(logprob.get_params())
+    normalize = RunningNormalize(horizon=50)
 
-    normalize = RunningNormalize(horizon=10)
-
-    for traj in trajs:
+    steps = steps // 64
+    for step in range(steps):
+        traj = get_chunk(experience, 64)
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
 
         _, backprop = logprob.evaluate(traj.o, sample=traj.a)
-        opt.apply_gradient(backprop(traj.r))
+        grad = backprop(traj.r)
+
+        opt.apply_gradient(grad, lr=0.01 * (1.0 - step/steps))
         logprob.load_params(opt.get_value())
 
-def ppo(*, logprob, trajs,
-        lr=0.5, optim_batch=64, optim_steps=300):
+def ppo(logprob, experience, *, steps, lr=0.5, optim_steps=300):
     opt = Adam(logprob.get_params())
 
     def normalize(v):
         return (v - np.mean(v)) / max(1e-6, np.std(v))
 
-    for traj in chunks(trajs, 2048):
+    for _ in range(steps // 2048):
+        traj = get_chunk(experience, 2048)
         traj = traj.modified(rewards=normalize)
 
-        baseline, _ = logprob.evaluate(traj.o, sample=traj.a)
+        baseline = logprob(traj.o, sample=traj.a)
 
         for _ in range(optim_steps):
-            idx = np.random.randint(len(traj), size=optim_batch)
+            idx = np.random.randint(len(traj), size=64)
             p, backprop = logprob.evaluate(traj.o[idx],
                 sample=traj.a[idx])
 
@@ -50,6 +44,7 @@ def ppo(*, logprob, trajs,
             grad[np.logical_and(grad > 1.2, traj.r[idx] > 0.0)] = 0.0
             grad[np.logical_and(grad < 0.8, traj.r[idx] < 0.0)] = 0.0
             grad *= traj.r[idx]
+            grad = backprop(grad)
 
-            opt.apply_gradient(backprop(grad), lr=lr/optim_steps)
+            opt.apply_gradient(grad, lr=lr/optim_steps)
             logprob.load_params(opt.get_value())
