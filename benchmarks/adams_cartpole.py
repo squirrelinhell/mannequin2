@@ -10,10 +10,10 @@ from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.logprob import Discrete
 from mannequin.gym import PrintRewards, episode
 
+from _env import cartpole as problem
+
 def run():
-    print("# steps reward")
-    env = gym.make("CartPole-v1")
-    env = PrintRewards(env)
+    env, get_progress = problem()
 
     policy = Input(env.observation_space.low.size)
     policy = LReLU(Affine(policy, 64))
@@ -29,7 +29,7 @@ def run():
 
     normalize = RunningNormalize(horizon=10)
 
-    while env.total_steps < 40000:
+    while get_progress() < 1.0:
         traj = episode(env, policy.sample)
         traj = traj.discounted(horizon=500)
         traj = traj.modified(rewards=normalize)

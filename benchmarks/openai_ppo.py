@@ -10,6 +10,8 @@ from mannequin.basicnet import Input, Affine, Tanh
 from mannequin.logprob import Gauss
 from mannequin.gym import PrintRewards, NormalizedObservations, one_step
 
+from _env import walker as problem ### walker / lander
+
 class GAE(object):
     def __init__(self, env, *, gam=0.99, lam=0.95):
         rng = np.random.RandomState()
@@ -62,11 +64,11 @@ class GAE(object):
 
         self.get_chunk = get_chunk
 
-def ppo(env, logprob, *, steps):
+def ppo(logprob, env, get_progress):
     gae = GAE(env)
     opt = Adam(logprob.get_params())
 
-    for i in range(steps // 2048):
+    while get_progress() < 1.0:
         traj = gae.get_chunk(logprob.sample, 2048)
         baseline = logprob(traj.o, sample=traj.a)
 
@@ -90,9 +92,7 @@ def normed_columns(std):
     return init
 
 def run():
-    print("# steps reward")
-    env = gym.make("BipedalWalker-v2")
-    env = PrintRewards(env, every=2048)
+    env, get_progress = problem()
     env = NormalizedObservations(env)
 
     policy = Input(env.observation_space.low.size)
@@ -104,7 +104,7 @@ def run():
         init=normed_columns(0.01), multiplier=1.0)
     policy = Gauss(mean=policy)
 
-    ppo(env, policy, steps=400000)
+    ppo(policy, env, get_progress)
 
 if __name__ == '__main__':
     run()

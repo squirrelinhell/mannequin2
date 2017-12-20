@@ -7,14 +7,19 @@ TMPDIR=$(mktemp -d) || exit 1
 trap "rm -rf $TMPDIR" EXIT
 
 mkdir "$TMPDIR/scripts"
+mkdir "$TMPDIR/problems"
 find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
     while read f; do
         NAME="${f##*/}"
         NAME="${NAME%.py}"
-        if grep -F -q '###' "$f"; then
-            code-variants "$f" "$TMPDIR/scripts/${NAME}_"
+        if grep -q '###' "$f"; then
+            code-variants --print "$f" "$TMPDIR/scripts/${NAME}_" | \
+                while read v; do
+                    echo "${v%%_*}" > "$TMPDIR/problems/${NAME}_$v"
+                done
         else
             cat "$f" > "$TMPDIR/scripts/${NAME}"
+            echo "${NAME##*_}" > "$TMPDIR/problems/${NAME}"
         fi
     done
 FILES=
@@ -26,7 +31,9 @@ FILES=$(sort -u <<<"$FILES" | grep -v '^$')
 
 if [ "x$FILES" = x ]; then
     echo "Available benchmarks:"
-    ls "$TMPDIR/scripts" | while read line; do echo " * $line"; done
+    for file in $(ls "$TMPDIR/scripts"); do
+        echo " * $file"
+    done
 else
     echo "Running benchmarks:"
     for file in $FILES; do
@@ -36,13 +43,16 @@ else
 
     for file in $FILES; do
         NAME="${file##*/}"
-        case "$NAME" in
+        PROBLEM=$(cat "$TMPDIR/problems/${NAME}") || exit 1
+        NAME=${NAME/${PROBLEM}_/}
+        NAME=${NAME/_${PROBLEM}/}
+        OUT_DIR="benchmarks/__results_${PROBLEM}_$NAME"
+        case "$PROBLEM" in
             cartpole*) COPIES=100 ;;
             *) COPIES=16 ;;
         esac
-        OUT_DIR="benchmarks/__results_$NAME"
-        VARIANTS=$(code-variants --print \
-            --run --copies "$COPIES" "$file" "$OUT_DIR/") || exit
+        code-variants --run --copies "$COPIES" \
+            "$file" "$OUT_DIR/" || exit 1
     done
 fi
 
