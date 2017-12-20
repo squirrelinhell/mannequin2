@@ -5,10 +5,30 @@ import gym.spaces
 
 from mannequin import RunningNormalize, Trajectory
 
+class ClippedActions(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+        assert isinstance(self.env.action_space, gym.spaces.Box)
+        low = self.action_space.low
+        diff = self.action_space.high - low
+        assert (diff > 0.001).all()
+        assert (diff < 1000).all()
+
+        def do_step(action):
+            action = np.asarray(action, dtype=np.float32)
+            action = action.reshape(low.shape)
+            action = np.clip(action, -1.0, 1.0) * 0.5 + 0.5
+            return self.env._step(diff * action + low)
+
+        self._step = do_step
+        self.action_space = gym.spaces.Box(-1.0, 1.0, low.shape)
+
 class UnboundedActions(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
 
+        assert isinstance(self.env.action_space, gym.spaces.Box)
         low = self.action_space.low
         diff = self.action_space.high - low
         assert (diff > 0.001).all()
@@ -18,8 +38,7 @@ class UnboundedActions(gym.Wrapper):
             action = np.asarray(action, dtype=np.float32)
             action = action.reshape(low.shape)
             action = np.abs((action - 1.0) % 4.0 - 2.0) * 0.5
-            action = diff * action + low
-            return self.env._step(action)
+            return self.env._step(diff * action + low)
 
         self._step = do_step
         self.action_space = gym.spaces.Box(-np.inf, np.inf, low.shape)
