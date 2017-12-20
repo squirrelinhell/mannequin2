@@ -8,7 +8,7 @@ sys.path.append("..")
 from mannequin import RunningNormalize, Adams
 from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.logprob import Discrete
-from mannequin.gym import PrintRewards, episode
+from mannequin.gym import episode
 
 from _env import cartpole as problem
 

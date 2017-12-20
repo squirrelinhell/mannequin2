@@ -8,7 +8,7 @@ sys.path.append("..")
 from mannequin import Adam, Trajectory, SimplePredictor
 from mannequin.basicnet import Input, Affine, Tanh
 from mannequin.logprob import Gauss
-from mannequin.gym import PrintRewards, NormalizedObservations, one_step
+from mannequin.gym import NormalizedObservations, one_step
 
 from _env import walker as problem ### walker / lander
 
@@ -21,9 +21,6 @@ class GAE(object):
         value_predictor = SimplePredictor(
             env.observation_space.low.size
         )
-
-        def normalized(v):
-            return (v - np.mean(v)) / max(1e-6, np.std(v))
 
         def get_chunk(policy, length):
             nonlocal hist
@@ -60,16 +57,21 @@ class GAE(object):
                 idx = rng.randint(len(learn_traj), size=64)
                 value_predictor.sgd_step(learn_traj[idx], lr=0.001)
 
-            return traj.modified(rewards=normalized)
+            return traj
 
         self.get_chunk = get_chunk
 
+def normalize(v):
+    return (v - np.mean(v)) / max(1e-6, np.std(v))
+
 def ppo(logprob, env, get_progress):
-    gae = GAE(env)
+    chunks = GAE(env)
     opt = Adam(logprob.get_params())
 
     while get_progress() < 1.0:
-        traj = gae.get_chunk(logprob.sample, 2048)
+        traj = chunks.get_chunk(logprob.sample, 2048)
+        traj = traj.modified(rewards=normalize)
+
         baseline = logprob(traj.o, sample=traj.a)
 
         for _ in range(320):

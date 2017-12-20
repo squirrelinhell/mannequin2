@@ -23,7 +23,7 @@ find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
         fi
     done
 FILES=
-for pattern in "$@"; do
+for pattern in "${@:-}"; do
     FILES="$FILES"$'\n'$(find "$TMPDIR/scripts" -mindepth 1 \
         -maxdepth 1 -name "$pattern"'*')
 done
@@ -40,7 +40,6 @@ else
     echo "Running benchmarks:"
     for file in $FILES; do
         NAME="${file##*/}"
-        echo " * $NAME"
         PROBLEM=$(cat "$TMPDIR/problems/${NAME}") || exit 1
         ALGO=${NAME/${PROBLEM}_/}
         ALGO=${ALGO/_${PROBLEM}/}
@@ -49,6 +48,7 @@ else
             cartpole*) COPIES=100 ;;
             *) COPIES=16 ;;
         esac
+        echo " * $NAME (x$COPIES)"
         COPIES="$(seq -w $COPIES)" || exit 1
         {
             echo "$OUT_DIR/%.out:"
