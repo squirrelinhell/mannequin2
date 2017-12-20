@@ -35,32 +35,44 @@ if [ "x$FILES" = x ]; then
         echo " * $file"
     done
 else
+    mkdir "$TMPDIR/results"
+    TARGETS=""
     echo "Running benchmarks:"
     for file in $FILES; do
         NAME="${file##*/}"
         echo " * $NAME"
-    done
-
-    for file in $FILES; do
-        NAME="${file##*/}"
         PROBLEM=$(cat "$TMPDIR/problems/${NAME}") || exit 1
-        NAME=${NAME/${PROBLEM}_/}
-        NAME=${NAME/_${PROBLEM}/}
-        OUT_DIR="benchmarks/__results_${PROBLEM}_$NAME"
+        ALGO=${NAME/${PROBLEM}_/}
+        ALGO=${ALGO/_${PROBLEM}/}
+        OUT_DIR="benchmarks/__results_${PROBLEM}_${ALGO}"
         case "$PROBLEM" in
             cartpole*) COPIES=100 ;;
             *) COPIES=16 ;;
         esac
-        code-variants --run --copies "$COPIES" \
-            "$file" "$OUT_DIR/" || exit 1
+        COPIES="$(seq -w $COPIES)" || exit 1
+        {
+            echo "$OUT_DIR/%.out:"
+            echo $'\t@echo Running '"$NAME"'/$*...'
+            echo $'\t@python3 '"$file"' > '"$TMPDIR"'/results/'"$NAME"'_$*.out'
+            echo $'\t@mkdir -p $(dir $@)'
+            echo $'\t@cp '"$TMPDIR"'/results/'"$NAME"'_$*.out $@'
+            echo
+        } >> "$TMPDIR/makefile"
+        for c in $COPIES; do
+            TARGETS="$TARGETS $OUT_DIR/copy$c.out"
+        done
     done
+    echo "all: $TARGETS" >> "$TMPDIR/makefile"
+    NUM_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
+    echo "Max threads: $NUM_THREADS" 1>&2
+    make -f "$TMPDIR/makefile" -j "$NUM_THREADS" 1>&2 || exit 1
 fi
 
 mkdir "$TMPDIR/plots"
 for dir in $(find benchmarks -mindepth 1 -maxdepth 1 -type d \
         -name '*results_*' | sort); do
     PLOT="${dir##*/}"
-    PLOT="${PLOT#__}"
+    [ "x${PLOT::2}" != x__ ] || PLOT="${PLOT:2}_new"
     PLOT="${PLOT#results_}"
     VARIANT="${PLOT#*_}"
     PLOT="${PLOT%%_*}"
