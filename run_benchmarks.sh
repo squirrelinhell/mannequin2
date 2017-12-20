@@ -17,33 +17,34 @@ find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
             cat "$f" > "$TMPDIR/scripts/${NAME}"
         fi
     done
-
-if [ "x$1" = x ]; then
-    echo "Available benchmarks:"
-    ls "$TMPDIR/scripts" | while read line; do echo " * $line"; done
-    exit 1
-fi
-
 FILES=
-for pattern in "${@}"; do
+for pattern in "$@"; do
     FILES="$FILES"$'\n'$(find "$TMPDIR/scripts" -mindepth 1 \
         -maxdepth 1 -name "$pattern"'*')
 done
 FILES=$(sort -u <<<"$FILES" | grep -v '^$')
 
-for file in $FILES; do
-    NAME="${file##*/}"
-    echo "Running $NAME... "
+if [ "x$FILES" = x ]; then
+    echo "Available benchmarks:"
+    ls "$TMPDIR/scripts" | while read line; do echo " * $line"; done
+else
+    echo "Running benchmarks:"
+    for file in $FILES; do
+        NAME="${file##*/}"
+        echo " * $NAME"
+    done
 
-    case "$NAME" in
-        cartpole*) COPIES=100 ;;
-        *) COPIES=16 ;;
-    esac
-
-    OUT_DIR="benchmarks/__results_$NAME"
-    VARIANTS=$(code-variants --print \
-        --run --copies "$COPIES" "$file" "$OUT_DIR/") || exit
-done
+    for file in $FILES; do
+        NAME="${file##*/}"
+        case "$NAME" in
+            cartpole*) COPIES=100 ;;
+            *) COPIES=16 ;;
+        esac
+        OUT_DIR="benchmarks/__results_$NAME"
+        VARIANTS=$(code-variants --print \
+            --run --copies "$COPIES" "$file" "$OUT_DIR/") || exit
+    done
+fi
 
 mkdir "$TMPDIR/plots"
 for dir in $(find benchmarks -mindepth 1 -maxdepth 1 -type d \
