@@ -7,19 +7,14 @@ TMPDIR=$(mktemp -d) || exit 1
 trap "rm -rf $TMPDIR" EXIT
 
 mkdir "$TMPDIR/scripts"
-mkdir "$TMPDIR/problems"
 find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
     while read f; do
         NAME="${f##*/}"
         NAME="${NAME%.py}"
         if grep -q '###' "$f"; then
-            code-variants --print "$f" "$TMPDIR/scripts/${NAME}_" | \
-                while read v; do
-                    echo "${v%%_*}" > "$TMPDIR/problems/${NAME}_$v"
-                done
+            code-variants "$f" "$TMPDIR/scripts/${NAME}_"
         else
             cat "$f" > "$TMPDIR/scripts/${NAME}"
-            echo "${NAME##*_}" > "$TMPDIR/problems/${NAME}"
         fi
     done
 FILES=
@@ -40,15 +35,20 @@ else
     echo "Running benchmarks:"
     for file in $FILES; do
         NAME="${file##*/}"
-        PROBLEM=$(cat "$TMPDIR/problems/${NAME}") || exit 1
-        ALGO=${NAME/${PROBLEM}_/}
-        ALGO=${ALGO/_${PROBLEM}/}
+        PROBLEM=$(PRINT_ENV_ONLY=1 python3 "$file" </dev/null 2>/dev/null)
+        if [ "x${PROBLEM::9}" != "xproblem: " ]; then
+            echo "Error: could not determine environment: $NAME" 1>&2
+            exit 1
+        fi
+        PROBLEM="${PROBLEM:9}"
+        ALGO="${NAME/${PROBLEM}_/}"
+        ALGO="${ALGO/_${PROBLEM}/}"
         OUT_DIR="benchmarks/__results_${PROBLEM}_${ALGO}"
         case "$PROBLEM" in
             cartpole*) COPIES=100 ;;
             *) COPIES=16 ;;
         esac
-        echo " * $NAME (x$COPIES)"
+        echo " * $NAME (x$COPIES) on $PROBLEM"
         COPIES="$(seq -w $COPIES)" || exit 1
         {
             echo "$OUT_DIR/%.out:"
