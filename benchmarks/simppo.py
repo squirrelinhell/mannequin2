@@ -6,11 +6,7 @@ import numpy as np
 
 sys.path.append("..")
 from mannequin import RunningNormalize, Adam
-from mannequin.basicnet import Input, Affine, Tanh, Multiplier
-from mannequin.logprob import Discrete, Gauss
 from mannequin.gym import NormalizedObservations, episode
-
-from _env import lander as build_env ### cartpole / acrobot / walker / lander
 
 class DiscountedChunks(object):
     def __init__(self, env, *, horizon=500):
@@ -27,13 +23,19 @@ class DiscountedChunks(object):
 
         self.get_chunk = get_chunk
 
-def train(logprob, env, get_progress):
-    chunks = DiscountedChunks(env)
+def run():
+    from _env import build_env, get_progress, mlp_policy
+    env = build_env()
+    env = NormalizedObservations(env)
+
+    logprob = mlp_policy(env)
     opt = Adam(logprob.get_params(), horizon=10)
+
     normalize = RunningNormalize(horizon=2)
+    env = DiscountedChunks(env)
 
     while get_progress() < 1.0:
-        traj = chunks.get_chunk(logprob.sample, 2048)
+        traj = env.get_chunk(logprob.sample, 2048)
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
 
@@ -51,27 +53,6 @@ def train(logprob, env, get_progress):
 
             opt.apply_gradient(backprop(grad), lr=0.0003)
             logprob.load_params(opt.get_value())
-
-def run():
-    env = build_env()
-    get_progress = (lambda e: (lambda: e.progress))(env)
-    env = NormalizedObservations(env)
-
-    policy = Input(env.observation_space.low.size)
-    policy = Tanh(Affine(policy, 64))
-    policy = Tanh(Affine(policy, 64))
-    if isinstance(env.action_space, gym.spaces.Box):
-        policy = Affine(policy, env.action_space.low.size)
-        policy = Multiplier(policy, 0.1)
-        policy = Gauss(mean=policy)
-    elif isinstance(env.action_space, gym.spaces.Discrete):
-        policy = Affine(policy, env.action_space.n)
-        policy = Multiplier(policy, 0.1)
-        policy = Discrete(logits=policy)
-    else:
-        raise ValueError("Unsupported action space")
-
-    train(policy, env, get_progress)
 
 if __name__ == '__main__':
     run()

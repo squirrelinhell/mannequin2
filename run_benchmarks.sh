@@ -6,68 +6,86 @@ export PATH="$(pwd)/scripts:$PATH"
 TMPDIR=$(mktemp -d) || exit 1
 trap "rm -rf $TMPDIR" EXIT
 
-mkdir "$TMPDIR/scripts"
+mkdir "$TMPDIR/algo"
 find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
     while read f; do
         NAME="${f##*/}"
         NAME="${NAME%.py}"
         if grep -q '###' "$f"; then
-            code-variants "$f" "$TMPDIR/scripts/${NAME}_"
+            code-variants "$f" "$TMPDIR/algo/${NAME}_"
         else
-            cat "$f" > "$TMPDIR/scripts/${NAME}"
+            cat "$f" > "$TMPDIR/algo/${NAME}"
         fi
     done
-FILES=
+
+ALGO=
 for pattern in "${@:-}"; do
-    FILES="$FILES"$'\n'$(find "$TMPDIR/scripts" -mindepth 1 \
+    ALGO="$ALGO"$'\n'$(find "$TMPDIR/algo" -mindepth 1 \
         -maxdepth 1 -name "$pattern"'*')
 done
-FILES=$(sort -u <<<"$FILES" | grep -v '^$')
+ALGO=$(sort -u <<<"$ALGO" | grep -v '^$')
 
-if [ "x$FILES" = x ]; then
-    echo "Available benchmarks:"
-    for file in $(ls "$TMPDIR/scripts"); do
-        echo " * $file"
+ALL_ENVS=$(grep -F '": c("' benchmarks/_env.py | cut -d '"' -f 2 | sort)
+ENVS=
+while read env; do
+    for pattern in "${@:-}"; do
+        [[ $env == $pattern* ]] && ENVS="$ENVS"$'\n'"$env"
+    done
+done <<<"$ALL_ENVS"
+ENVS=$(sort -u <<<"$ENVS" | grep -v '^$')
+[ "x$ENVS" != x ] || ENVS="$ALL_ENVS"
+
+n_copies() {
+    case "$1" in
+        cartpole) echo 100 ;;
+        acrobot) echo 100 ;;
+        *) echo 16 ;;
+    esac
+}
+
+if [ "x$ALGO" = x ]; then
+    echo "Available algorithms:"
+    for algo in $(ls "$TMPDIR/scripts"); do
+        echo " * $algo"
+    done
+    echo "Available environments:"
+    for env in $ALL_ENVS; do
+        echo " * $env"
     done
 else
     mkdir "$TMPDIR/results"
     TARGETS=""
-    echo "Running benchmarks:"
-    for file in $FILES; do
-        NAME="${file##*/}"
-        PROBLEM=$(PRINT_ENV_ONLY=1 python3 "$file" </dev/null 2>/dev/null)
-        if [ "x${PROBLEM::9}" != "xproblem: " ]; then
-            echo "Error: could not determine environment: $NAME" 1>&2
-            exit 1
-        fi
-        PROBLEM="${PROBLEM:9}"
-        ALGO="${NAME/${PROBLEM}_/}"
-        ALGO="${ALGO/_${PROBLEM}/}"
-        OUT_DIR="benchmarks/__results_${PROBLEM}_${ALGO}"
-        case "$PROBLEM" in
-            cartpole*) COPIES=100 ;;
-            acrobot*) COPIES=100 ;;
-            *) COPIES=16 ;;
-        esac
-        echo " * $NAME (x$COPIES) on $PROBLEM"
-        COPIES="$(seq -w $COPIES)" || exit 1
-        {
-            echo "$OUT_DIR/%.out:"
-            echo $'\t@echo Running '"$NAME"'/$*...'
-            echo $'\t@LOG_FILE='"$TMPDIR"'/results/'"$NAME"'_$*.out python3 '"$file"
-            echo $'\t@mkdir -p $(dir $@)'
-            echo $'\t@cp '"$TMPDIR"'/results/'"$NAME"'_$*.out $@'
-            echo
-        } >> "$TMPDIR/makefile"
-        for c in $COPIES; do
-            TARGETS="$TARGETS $OUT_DIR/copy$c.out"
+    echo "Running algorithms:"
+    for script in $ALGO; do
+        echo " * ${script##*/}"
+        for env in $ENVS; do
+            NAME="${env}_${script##*/}"
+            OUT_DIR="benchmarks/__results_${NAME}"
+            COPIES="$(seq -w $(n_copies $env))" || exit 1
+            {
+                echo "$OUT_DIR/%.out:"
+                echo $'\t@echo Running "'"${script##*/}"' on '"$env"' ($*)..."'
+                echo $'\t@ENV='"$env" \
+                    'LOG_FILE='"$TMPDIR"'/results/'"$NAME"'_$*.out' \
+                        "python3 $script"
+                echo $'\t@mkdir -p $(dir $@)'
+                echo $'\t@mv '"$TMPDIR"'/results/'"$NAME"'_$*.out $@'
+                echo
+            } >> "$TMPDIR/makefile"
+            for c in $COPIES; do
+                TARGETS="$TARGETS $OUT_DIR/copy$c.out"
+            done
         done
+    done
+    echo "On environments:"
+    for env in $ENVS; do
+        echo " * $env (x$(n_copies $env))"
     done
     echo "all: $TARGETS" >> "$TMPDIR/makefile"
     NUM_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
     echo "Max threads: $NUM_THREADS" 1>&2
     make --keep-going -j "$NUM_THREADS" \
-        -f "$TMPDIR/makefile" 1>&2 || exit 1
+        -f "$TMPDIR/makefile" 1>&2 || true
 fi
 
 mkdir "$TMPDIR/plots"

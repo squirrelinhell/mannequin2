@@ -6,19 +6,14 @@ import gym
 
 sys.path.append("..")
 from mannequin import RunningNormalize, Adams
-from mannequin.basicnet import Input, Affine, LReLU
-from mannequin.logprob import Discrete
+from mannequin.basicnet import LReLU
 from mannequin.gym import episode
 
-from _env import cartpole as build_env ### cartpole / acrobot
-
 def run():
+    from _env import build_env, get_progress, mlp_policy
     env = build_env()
 
-    policy = Input(env.observation_space.low.size)
-    policy = LReLU(Affine(policy, 64))
-    policy = Affine(policy, env.action_space.n)
-    policy = Discrete(logits=policy)
+    policy = mlp_policy(env, hid_layers=1, activation=LReLU)
 
     opt = Adams(
         policy.get_params(),
@@ -29,7 +24,7 @@ def run():
 
     normalize = RunningNormalize(horizon=10)
 
-    while env.progress < 1.0:
+    while get_progress() < 1.0:
         traj = episode(env, policy.sample)
         traj = traj.discounted(horizon=500)
         traj = traj.modified(rewards=normalize)
