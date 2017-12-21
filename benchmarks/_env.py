@@ -4,6 +4,7 @@ import sys
 import gym
 import gym.spaces
 
+sys.path.append("..")
 from mannequin import bar
 from mannequin.basicnet import Input, Affine, Tanh, Multiplier
 from mannequin.logprob import Discrete, Gauss
@@ -17,7 +18,11 @@ def build_env():
     video_wanted = False
 
     global get_progress
-    get_progress = lambda: finished_steps / global_max_steps
+    def get_progress(*, divide=True):
+        if divide:
+            return finished_steps / global_max_steps
+        else:
+            return finished_steps, global_max_steps
 
     class TrackedEnv(gym.Wrapper):
         def __init__(self, gym_name, *,

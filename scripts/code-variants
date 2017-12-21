@@ -24,7 +24,7 @@ while [ "x${1::2}" = x-- ]; do
         x--run) RUN=1 ;;
         x--copies)
             shift
-            COPIES="$(seq -w $1)" || exit 1
+            COPIES="$(seq $1)" || exit 1
         ;;
         x--print) PRINT=1 ;;
         *)

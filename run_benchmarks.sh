@@ -36,6 +36,10 @@ ENVS=$(sort -u <<<"$ENVS" | grep -v '^$')
 [ "x$ENVS" != x ] || ENVS="$ALL_ENVS"
 
 n_copies() {
+    if [ "x$N_COPIES" != x ]; then
+        echo "$N_COPIES"
+        return 0
+    fi
     case "$1" in
         cartpole) echo 100 ;;
         acrobot) echo 100 ;;
@@ -50,7 +54,7 @@ if [ "x$ALGO" = x ]; then
     done
     echo "Available environments:"
     for env in $ALL_ENVS; do
-        echo " * $env"
+        echo " * $env (x$(n_copies $env))"
     done
 else
     mkdir "$TMPDIR/results"
@@ -61,7 +65,7 @@ else
         for env in $ENVS; do
             NAME="${env}_${script##*/}"
             OUT_DIR="benchmarks/__results_${NAME}"
-            COPIES="$(seq -w $(n_copies $env))" || exit 1
+            COPIES="$(seq $(n_copies $env))" || exit 1
             {
                 echo "$OUT_DIR/%.out:"
                 echo $'\t@echo Running "'"${script##*/}"' on '"$env"' ($*)..."'
