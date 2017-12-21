@@ -46,6 +46,7 @@ else
         OUT_DIR="benchmarks/__results_${PROBLEM}_${ALGO}"
         case "$PROBLEM" in
             cartpole*) COPIES=100 ;;
+            acrobot*) COPIES=100 ;;
             *) COPIES=16 ;;
         esac
         echo " * $NAME (x$COPIES) on $PROBLEM"
@@ -65,7 +66,8 @@ else
     echo "all: $TARGETS" >> "$TMPDIR/makefile"
     NUM_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
     echo "Max threads: $NUM_THREADS" 1>&2
-    make -f "$TMPDIR/makefile" -j "$NUM_THREADS" 1>&2 || exit 1
+    make --keep-going -j "$NUM_THREADS" \
+        -f "$TMPDIR/makefile" 1>&2 || exit 1
 fi
 
 mkdir "$TMPDIR/plots"

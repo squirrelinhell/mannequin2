@@ -64,6 +64,7 @@ def builder(name, print_every=2000, steps=400000, max_rew=100):
     return build
 
 cartpole = builder("CartPole-v1", print_every=1000, steps=40000, max_rew=500)
+acrobot = builder("Acrobot-v1", print_every=2000, steps=80000, max_rew=500)
 walker = builder("BipedalWalker-v2", print_every=2048, max_rew=300)
 lander = builder("LunarLanderContinuous-v2", print_every=2048, max_rew=500)
 

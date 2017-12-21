@@ -10,7 +10,7 @@ from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.logprob import Discrete
 from mannequin.gym import episode
 
-from _env import cartpole as build_env
+from _env import cartpole as build_env ### cartpole / acrobot
 
 def run():
     env = build_env()

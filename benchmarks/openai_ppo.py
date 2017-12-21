@@ -7,10 +7,10 @@ import numpy as np
 sys.path.append("..")
 from mannequin import Adam, Trajectory, SimplePredictor
 from mannequin.basicnet import Input, Affine, Tanh
-from mannequin.logprob import Gauss
+from mannequin.logprob import Discrete, Gauss
 from mannequin.gym import NormalizedObservations, one_step
 
-from _env import walker as build_env ### walker / lander
+from _env import walker as build_env ### cartpole / acrobot / walker / lander
 
 class GAE(object):
     def __init__(self, env, *, gam=0.99, lam=0.95):
@@ -103,9 +103,16 @@ def run():
         init=normed_columns(1.0), multiplier=1.0))
     policy = Tanh(Affine(policy, 64,
         init=normed_columns(1.0), multiplier=1.0))
-    policy = Affine(policy, env.action_space.low.size,
-        init=normed_columns(0.01), multiplier=1.0)
-    policy = Gauss(mean=policy)
+    if isinstance(env.action_space, gym.spaces.Box):
+        policy = Affine(policy, env.action_space.low.size,
+            init=normed_columns(0.01), multiplier=1.0)
+        policy = Gauss(mean=policy)
+    elif isinstance(env.action_space, gym.spaces.Discrete):
+        policy = Affine(policy, env.action_space.n,
+            init=normed_columns(0.01), multiplier=1.0)
+        policy = Discrete(logits=policy)
+    else:
+        raise ValueError("Unsupported action space")
 
     train(policy, env, get_progress)
 

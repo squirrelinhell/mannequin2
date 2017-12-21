@@ -10,7 +10,7 @@ from mannequin.basicnet import Input, Affine, Tanh, Multiplier
 from mannequin.logprob import Discrete, Gauss
 from mannequin.gym import NormalizedObservations, episode
 
-from _env import lander as build_env ### cartpole / walker / lander
+from _env import lander as build_env ### cartpole / acrobot / walker / lander
 
 class DiscountedChunks(object):
     def __init__(self, env, *, horizon=500):
