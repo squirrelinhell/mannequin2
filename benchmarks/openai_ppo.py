@@ -64,9 +64,9 @@ class GAE(object):
 def normalize(v):
     return (v - np.mean(v)) / max(1e-6, np.std(v))
 
-def ppo(logprob, env, get_progress):
+def train(logprob, env, get_progress):
     chunks = GAE(env)
-    opt = Adam(logprob.get_params())
+    opt = Adam(logprob.get_params(), horizon=10)
 
     while get_progress() < 1.0:
         traj = chunks.get_chunk(logprob.sample, 2048)
@@ -107,7 +107,7 @@ def run():
         init=normed_columns(0.01), multiplier=1.0)
     policy = Gauss(mean=policy)
 
-    ppo(policy, env, get_progress)
+    train(policy, env, get_progress)
 
 if __name__ == '__main__':
     run()

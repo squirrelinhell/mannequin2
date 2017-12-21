@@ -130,8 +130,7 @@ def build_plot(input_file, *columns,
     for n, v in columns[2:]:
         v = np.array([str(i) for i in v], dtype=str)
         cls = list(sorted(set(v)))
-        if len(cls) >= 2:
-            cls_columns.append((n, v, cls))
+        cls_columns.append((n, v, cls))
 
     def format_ax(prop, label, minv, maxv):
         if label[:4] == "log(":

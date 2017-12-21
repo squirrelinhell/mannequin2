@@ -5,7 +5,7 @@ import numpy as np
 import gym
 
 sys.path.append("..")
-from mannequin import RunningNormalize, Adams, bar
+from mannequin import RunningNormalize, Adams
 from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.logprob import Discrete
 from mannequin.gym import episode
@@ -31,8 +31,6 @@ def run():
 
     while env.progress < 1.0:
         traj = episode(env, policy.sample)
-        print(bar(np.sum(traj.r), 500.0))
-
         traj = traj.discounted(horizon=500)
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)

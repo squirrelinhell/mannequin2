@@ -6,7 +6,7 @@ from mannequin import RunningMean
 
 class BaseTwoMoments:
     def __init__(self, value, update_rule, *,
-            horizon=10,
+            horizon,
             var_horizon=100,
             print_norm=False,
             **global_params):

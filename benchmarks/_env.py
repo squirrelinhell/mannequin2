@@ -4,6 +4,7 @@ import sys
 import gym
 import gym.spaces
 
+from mannequin import bar
 from mannequin.gym import PrintRewards, ClippedActions
 
 class Logger(gym.Wrapper):
@@ -41,7 +42,7 @@ class Progress(gym.Wrapper):
         self._step = do_step
         self.progress = 0.0
 
-def builder(name, print_every=2000, steps=400000):
+def builder(name, print_every=2000, steps=400000, max_rew=100):
     def build():
         env = gym.make(name)
         if isinstance(env.action_space, gym.spaces.Box):
@@ -54,14 +55,17 @@ def builder(name, print_every=2000, steps=400000):
                 with open(os.environ["LOG_FILE"], "a") as f:
                     f.write(" ".join(str(v) for v in a) + "\n")
                     f.flush()
-            env = PrintRewards(env, print=append_line,
-                every=print_every)
+            env = PrintRewards(env, every=print_every,
+                print=append_line)
+        else:
+            env = PrintRewards(env, every=print_every,
+                print=lambda s, r: print(bar(r, max_rew), flush=True))
         return Progress(env, max_steps=steps)
     return build
 
-cartpole = builder("CartPole-v1", print_every=1000, steps=40000)
-walker = builder("BipedalWalker-v2", print_every=2048)
-lander = builder("LunarLanderContinuous-v2", print_every=2048)
+cartpole = builder("CartPole-v1", print_every=1000, steps=40000, max_rew=500)
+walker = builder("BipedalWalker-v2", print_every=2048, max_rew=300)
+lander = builder("LunarLanderContinuous-v2", print_every=2048, max_rew=500)
 
 class ModuleWrapper(object):
     def __init__(self, inner):

@@ -19,7 +19,7 @@ class SimplePredictor(object):
         model = Affine(model, out_size)
 
         # Use default parameter initialization
-        opt = Adam(model.get_params())
+        opt = Adam(model.get_params(), horizon=10)
 
         if normalize_inputs:
             normalize = RunningNormalize(shape=(in_size,))

@@ -27,9 +27,9 @@ class DiscountedChunks(object):
 
         self.get_chunk = get_chunk
 
-def ppo(logprob, env, get_progress):
+def train(logprob, env, get_progress):
     chunks = DiscountedChunks(env)
-    opt = Adam(logprob.get_params())
+    opt = Adam(logprob.get_params(), horizon=10)
     normalize = RunningNormalize(horizon=2)
 
     while get_progress() < 1.0:
@@ -71,7 +71,7 @@ def run():
     else:
         raise ValueError("Unsupported action space")
 
-    ppo(policy, env, get_progress)
+    train(policy, env, get_progress)
 
 if __name__ == '__main__':
     run()
