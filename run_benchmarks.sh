@@ -45,7 +45,7 @@ n_copies() {
 
 if [ "x$ALGO" = x ]; then
     echo "Available algorithms:"
-    for algo in $(ls "$TMPDIR/scripts"); do
+    for algo in $(ls "$TMPDIR/algo"); do
         echo " * $algo"
     done
     echo "Available environments:"
