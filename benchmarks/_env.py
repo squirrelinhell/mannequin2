@@ -29,6 +29,18 @@ class Logger(gym.Wrapper):
         )
         super().__init__(env)
 
+class Progress(gym.Wrapper):
+    def __init__(self, env, *, max_steps):
+        super().__init__(env)
+        steps = 0
+        def do_step(action):
+            nonlocal steps
+            steps += 1
+            self.progress = steps / max_steps
+            return self.env._step(action)
+        self._step = do_step
+        self.progress = 0.0
+
 def builder(name, print_every=2000, steps=400000):
     def build():
         env = gym.make(name)
@@ -37,8 +49,14 @@ def builder(name, print_every=2000, steps=400000):
         if "LOG_DIR" in os.environ:
             env = Logger(env, os.environ["LOG_DIR"],
                 video_every=steps // 5)
-        env = PrintRewards(env, every=print_every)
-        return env, lambda: env.total_steps / steps
+        if "LOG_FILE" in os.environ:
+            def append_line(*a):
+                with open(os.environ["LOG_FILE"], "a") as f:
+                    f.write(" ".join(str(v) for v in a) + "\n")
+                    f.flush()
+            env = PrintRewards(env, print=append_line,
+                every=print_every)
+        return Progress(env, max_steps=steps)
     return build
 
 cartpole = builder("CartPole-v1", print_every=1000, steps=40000)

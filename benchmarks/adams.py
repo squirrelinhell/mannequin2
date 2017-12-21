@@ -5,15 +5,15 @@ import numpy as np
 import gym
 
 sys.path.append("..")
-from mannequin import RunningNormalize, Adams
+from mannequin import RunningNormalize, Adams, bar
 from mannequin.basicnet import Input, Affine, LReLU
 from mannequin.logprob import Discrete
 from mannequin.gym import episode
 
-from _env import cartpole as problem
+from _env import cartpole as build_env
 
 def run():
-    env, get_progress = problem()
+    env = build_env()
 
     policy = Input(env.observation_space.low.size)
     policy = LReLU(Affine(policy, 64))
@@ -29,8 +29,10 @@ def run():
 
     normalize = RunningNormalize(horizon=10)
 
-    while get_progress() < 1.0:
+    while env.progress < 1.0:
         traj = episode(env, policy.sample)
+        print(bar(np.sum(traj.r), 500.0))
+
         traj = traj.discounted(horizon=500)
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)

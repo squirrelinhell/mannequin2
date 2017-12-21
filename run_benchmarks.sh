@@ -53,7 +53,7 @@ else
         {
             echo "$OUT_DIR/%.out:"
             echo $'\t@echo Running '"$NAME"'/$*...'
-            echo $'\t@python3 '"$file"' > '"$TMPDIR"'/results/'"$NAME"'_$*.out'
+            echo $'\t@LOG_FILE='"$TMPDIR"'/results/'"$NAME"'_$*.out python3 '"$file"' &>/dev/null'
             echo $'\t@mkdir -p $(dir $@)'
             echo $'\t@cp '"$TMPDIR"'/results/'"$NAME"'_$*.out $@'
             echo

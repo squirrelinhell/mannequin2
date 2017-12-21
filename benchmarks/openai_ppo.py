@@ -10,7 +10,7 @@ from mannequin.basicnet import Input, Affine, Tanh
 from mannequin.logprob import Gauss
 from mannequin.gym import NormalizedObservations, one_step
 
-from _env import walker as problem ### walker / lander
+from _env import walker as build_env ### walker / lander
 
 class GAE(object):
     def __init__(self, env, *, gam=0.99, lam=0.95):
@@ -94,7 +94,8 @@ def normed_columns(std):
     return init
 
 def run():
-    env, get_progress = problem()
+    env = build_env()
+    get_progress = (lambda e: (lambda: e.progress))(env)
     env = NormalizedObservations(env)
 
     policy = Input(env.observation_space.low.size)

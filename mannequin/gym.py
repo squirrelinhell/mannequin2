@@ -89,7 +89,6 @@ class PrintRewards(gym.Wrapper):
             assert ep_rew is not None
             ep_rew += reward
             total_steps += 1
-            self.total_steps = total_steps
             if done:
                 finished.append(ep_rew)
                 ep_rew = None
@@ -103,7 +102,6 @@ class PrintRewards(gym.Wrapper):
             nonlocal ep_rew
             ep_rew = 0.0
             return self.env._reset()
-        self.total_steps = 0
         self._step = do_step
         self._reset = do_reset
 

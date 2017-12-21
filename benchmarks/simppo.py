@@ -5,12 +5,12 @@ import gym
 import numpy as np
 
 sys.path.append("..")
-from mannequin import RunningNormalize, Adam, Trajectory, SimplePredictor
+from mannequin import RunningNormalize, Adam
 from mannequin.basicnet import Input, Affine, Tanh, Multiplier
 from mannequin.logprob import Gauss
 from mannequin.gym import NormalizedObservations, episode
 
-from _env import walker as problem ### walker / lander
+from _env import lander as build_env ### walker / lander
 
 class DiscountedChunks(object):
     def __init__(self, env, *, horizon=500):
@@ -53,7 +53,8 @@ def ppo(logprob, env, get_progress):
             logprob.load_params(opt.get_value())
 
 def run():
-    env, get_progress = problem()
+    env = build_env()
+    get_progress = (lambda e: (lambda: e.progress))(env)
     env = NormalizedObservations(env)
 
     policy = Input(env.observation_space.low.size)
