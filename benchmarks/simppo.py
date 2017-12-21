@@ -7,10 +7,10 @@ import numpy as np
 sys.path.append("..")
 from mannequin import RunningNormalize, Adam
 from mannequin.basicnet import Input, Affine, Tanh, Multiplier
-from mannequin.logprob import Gauss
+from mannequin.logprob import Discrete, Gauss
 from mannequin.gym import NormalizedObservations, episode
 
-from _env import lander as build_env ### walker / lander
+from _env import lander as build_env ### cartpole / walker / lander
 
 class DiscountedChunks(object):
     def __init__(self, env, *, horizon=500):
@@ -60,9 +60,16 @@ def run():
     policy = Input(env.observation_space.low.size)
     policy = Tanh(Affine(policy, 64))
     policy = Tanh(Affine(policy, 64))
-    policy = Affine(policy, env.action_space.low.size)
-    policy = Multiplier(policy, 0.1)
-    policy = Gauss(mean=policy)
+    if isinstance(env.action_space, gym.spaces.Box):
+        policy = Affine(policy, env.action_space.low.size)
+        policy = Multiplier(policy, 0.1)
+        policy = Gauss(mean=policy)
+    elif isinstance(env.action_space, gym.spaces.Discrete):
+        policy = Affine(policy, env.action_space.n)
+        policy = Multiplier(policy, 0.1)
+        policy = Discrete(logits=policy)
+    else:
+        raise ValueError("Unsupported action space")
 
     ppo(policy, env, get_progress)
 
