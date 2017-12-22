@@ -108,25 +108,23 @@ class PrintRewards(gym.Wrapper):
 def one_step(env, policy):
     obs = env.next_obs if hasattr(env, "next_obs") else None
     obs = env.reset() if obs is None else obs
-    act = policy(obs)
+    act = policy(np.reshape(obs, -1))
     next_obs, rew, done, _ = env.step(act)
     env.next_obs = None if done else next_obs
     return obs, act, float(rew), bool(done)
 
-def episode(env, policy, *, render=False, max_steps=0):
+def episode(env, policy, *, render=False, max_steps=10000):
     env.next_obs = env.reset()
     if render:
         env.render()
 
     hist = []
-    done = False
-
-    while not done:
+    for _ in range(max_steps):
         *exp, done = one_step(env, policy)
         hist.append(exp)
         if render:
             env.render()
-        if len(hist) == max_steps:
+        if done:
             break
 
     return Trajectory(*zip(*hist))

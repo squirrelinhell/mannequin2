@@ -24,6 +24,11 @@ def build_env():
         else:
             return finished_steps, global_max_steps
 
+    if "N_VIDEOS" in os.environ:
+        n_videos = int(os.environ["N_VIDEOS"])
+    else:
+        n_videos = 5
+
     class TrackedEnv(gym.Wrapper):
         def __init__(self, gym_name, *,
                 print_every=2000,
@@ -37,7 +42,8 @@ def build_env():
             def do_step(action):
                 nonlocal finished_steps, video_wanted
                 finished_steps += 1
-                if finished_steps % (max_steps // 5) == max_steps // 10:
+                video_every = max(1, max_steps // n_videos)
+                if finished_steps % video_every == video_every // 2:
                     video_wanted = True
                 return self.env.step(action)
             self._step = do_step
@@ -66,7 +72,8 @@ def build_env():
                 env = gym.wrappers.Monitor(
                     env,
                     os.environ["LOG_DIR"],
-                    video_callable=pop_wanted
+                    video_callable=pop_wanted,
+                    force=True
                 )
 
             super().__init__(env)
@@ -75,6 +82,7 @@ def build_env():
     configs = {
         "cartpole": c("CartPole-v1", print_every=1000, max_steps=40000),
         "acrobot": c("Acrobot-v1", max_steps=80000),
+        "car": c("MountainCar-v0", max_steps=80000, max_rew=200),
         "walker": c("BipedalWalker-v2", print_every=2048, max_rew=300),
         "lander": c("LunarLanderContinuous-v2", print_every=2048),
     }
