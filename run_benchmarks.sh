@@ -19,16 +19,23 @@ find benchmarks -maxdepth 1 -type f -name '*.py' -not -name '_*' | \
     done
 
 ALGO=
-for pattern in "${@:-}"; do
-    ALGO="$ALGO"$'\n'$(find "$TMPDIR/algo" -mindepth 1 \
-        -maxdepth 1 -name "$pattern"'*')
+ENV_PATTERNS=()
+while [ "x$1" != x ]; do
+    MATCHES=$(find "$TMPDIR/algo" -mindepth 1 \
+        -maxdepth 1 -name "$1"'*')
+    if [ "x$MATCHES" = x ]; then
+        ENV_PATTERNS+=("$1")
+    else
+        ALGO="$ALGO"$'\n'"$MATCHES"
+    fi
+    shift
 done
 ALGO=$(sort -u <<<"$ALGO" | grep -v '^$')
 
 ALL_ENVS=$(grep -F '": c("' benchmarks/_env.py | cut -d '"' -f 2 | sort)
 ENVS=
 while read env; do
-    for pattern in "${@:-}"; do
+    for pattern in "${ENV_PATTERNS[@]}"; do
         [[ $env == $pattern* ]] && ENVS="$ENVS"$'\n'"$env"
     done
 done <<<"$ALL_ENVS"
