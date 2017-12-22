@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.append("..")
 from mannequin import RunningNormalize, Adam
-from mannequin.basicnet import Input, Affine, Tanh, Multiplier
+from mannequin.basicnet import Input, Affine, Tanh
 from mannequin.logprob import Gauss
 from mannequin.gym import NormalizedObservations, ArgmaxActions, episode
 

@@ -6,7 +6,7 @@ import gym.spaces
 
 sys.path.append("..")
 from mannequin import bar
-from mannequin.basicnet import Input, Affine, Tanh, Multiplier
+from mannequin.basicnet import Input, Affine, Tanh
 from mannequin.logprob import Discrete, Gauss
 from mannequin.gym import PrintRewards, ClippedActions
 
@@ -99,8 +99,7 @@ def mlp_policy(env, *, hid_layers=2, hid_size=64, activation=Tanh):
     policy = Input(env.observation_space.low.size)
     for _ in range(hid_layers):
         policy = activation(Affine(policy, hid_size))
-    policy = Affine(policy, action_size)
-    policy = Multiplier(policy, 0.1)
+    policy = Affine(policy, action_size, init=0.1)
     policy = Distribution(policy)
 
     return policy

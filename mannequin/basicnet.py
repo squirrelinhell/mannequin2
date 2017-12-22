@@ -63,14 +63,13 @@ def equalized_columns(inps, outs):
     return m / np.sqrt(np.mean(np.square(m), axis=0))
 
 class Linear(Layer):
-    def __init__(self, inner, n_outputs, *,
-            init=equalized_columns, multiplier=None):
-        params = init(inner.n_outputs, n_outputs).astype(np.float32)
-
-        if multiplier is None:
-            multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
+    def __init__(self, inner, n_outputs, *, init=equalized_columns):
+        if callable(init):
+            params = init(inner.n_outputs, n_outputs).astype(np.float32)
         else:
-            multiplier = float(multiplier)
+            params = (float(init) * equalized_columns(inner.n_outputs,
+                n_outputs)).astype(np.float32)
+        multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
 
         def evaluate(inps, **kwargs):
             inps, inner_backprop = inner.evaluate(inps, **kwargs)
@@ -102,18 +101,6 @@ class Bias(Layer):
             return inps + params, backprop
 
         super().__init__(inner, evaluate=evaluate, params=params)
-
-class Multiplier(Layer):
-    def __init__(self, inner, multiplier):
-        multiplier = np.asarray(multiplier, dtype=np.float32)
-
-        def evaluate(inps, **kwargs):
-            inps, inner_backprop = inner.evaluate(inps, **kwargs)
-            def backprop(grad):
-                return inner_backprop(np.multiply(grad, multiplier))
-            return np.multiply(inps, multiplier), backprop
-
-        super().__init__(inner, evaluate=evaluate)
 
 class LReLU(Layer):
     def __init__(self, inner, *, leak=0.1):

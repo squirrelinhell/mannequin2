@@ -16,7 +16,7 @@ class SimplePredictor(object):
         model = Input(in_size)
         for _ in range(hid_layers):
             model = Tanh(Affine(model, hid_size))
-        model = Affine(model, out_size)
+        model = Affine(model, out_size, init=0.1)
 
         # Use default parameter initialization
         opt = Adam(model.get_params(), horizon=10)

@@ -56,10 +56,6 @@ def Bias(inner, *, init=np.zeros):
     params = init(inner.n_outputs).astype(np.float32)
     return AutogradLayer(inner, f=np.add, params=params)
 
-def Multiplier(inner, multiplier):
-    multiplier = np.asarray(multiplier, dtype=np.float32)
-    return AutogradLayer(inner, f=lambda i: np.multiply(i, multiplier))
-
 def LReLU(inner, leak=0.1):
     leak = float(leak)
     return AutogradLayer(inner,
