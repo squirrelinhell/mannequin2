@@ -47,26 +47,30 @@ def read_file(input_file):
                 out["$" + str(i+1)] = value
         return out, len(data[data.dtype.names[0]])
 
+def hamming_window(n):
+    w = 0.53836 - 0.46164 * np.cos(np.linspace(0.0, 2.0 * np.pi, n))
+    return w / np.sum(w)
+
 def running_mean(data, window):
-    sums = np.cumsum(data, 0)
-    return (sums[window:] - sums[:-window]) / window
+    return np.array([
+        np.convolve(d, hamming_window(window), mode="valid")
+        for d in data
+    ])
 
 def add_plot(ax, xs, ys, mean=False, **kwargs):
-    xy = np.array(list(sorted(zip(xs, ys))), dtype=np.float32)
-    if len(xy) < 1:
+    xy = np.array(list(sorted(zip(xs, ys))), dtype=np.float32).T
+    if xy.shape[1] < 1:
         return
     if mean:
-        color=None
-        if len(xy) >= 20:
-            color = ax.plot(xy[:,0], xy[:,1], ".", markersize=10,
-                alpha=0.2, zorder=1)[0].get_color()
-            xy = running_mean(xy, len(xy) // 10)
-        ax.plot(xy[:,0], xy[:,1], "w-", linewidth=4, zorder=2)
-        ax.plot(xy[:,0], xy[:,1], "-", color=color,
-            linewidth=2, zorder=3, **kwargs)
+        color = None
+        if xy.shape[1] >= 20:
+            p = ax.plot(*xy, ".", markersize=10, alpha=0.2, zorder=1)
+            color = p[0].get_color()
+            xy = running_mean(xy, xy.shape[1] // 10)
+        ax.plot(*xy, "w-", linewidth=4, zorder=2)
+        ax.plot(*xy, "-", color=color, linewidth=2, zorder=3, **kwargs)
     else:
-        ax.plot(xy[:,0], xy[:,1], ".", markersize=10,
-            alpha=0.5, zorder=1, **kwargs)
+        ax.plot(*xy, ".", markersize=10, alpha=0.5, zorder=1, **kwargs)
 
 def build_plot(input_file, *columns,
         xmin=None, xmax=None, ymin=None, ymax=None, **opts):
