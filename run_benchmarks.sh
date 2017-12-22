@@ -69,21 +69,23 @@ else
     echo "Running algorithms:"
     for script in $ALGO; do
         echo " * ${script##*/}"
+        echo '
+            export ENV="$1"
+            SCRIPT="'"$script"'"
+            INFO="${SCRIPT##*/} on $ENV ($2)"
+            export LOG_FILE="'"$TMPDIR"'/results/${ENV}_${SCRIPT##*/}_$2.out"
+            OUT_FILE="benchmarks/__results_${ENV}_${SCRIPT##*/}/$2.out"
+            echo "Running $INFO..."
+            TIME_MSG=$({ time { python3 "$SCRIPT" 1>&3 2>&3; } } 3>&2 2>&1) || exit 1
+            echo "Finished $INFO: $(echo $TIME_MSG)"
+            mkdir -p "$(dirname $OUT_FILE)" || exit 1
+            mv "$LOG_FILE" "$OUT_FILE" || exit 1
+        ' > "$script.sh"
         for env in $ENVS; do
-            NAME="${env}_${script##*/}"
-            OUT_DIR="benchmarks/__results_${NAME}"
-            COPIES="$(seq $(n_copies $env))" || exit 1
-            {
-                echo "$OUT_DIR/%.out:"
-                echo $'\t@echo Running "'"${script##*/}"' on '"$env"' ($*)..."'
-                echo $'\t@ENV='"$env" \
-                    'LOG_FILE='"$TMPDIR"'/results/'"$NAME"'_$*.out' \
-                        "python3 $script"
-                echo $'\t@mkdir -p $(dir $@)'
-                echo $'\t@mv '"$TMPDIR"'/results/'"$NAME"'_$*.out $@'
-                echo
-            } >> "$TMPDIR/makefile"
-            for c in $COPIES; do
+            OUT_DIR="benchmarks/__results_${env}_${script##*/}"
+            echo "$OUT_DIR/%.out:"$'\n\t@'"/bin/bash $script.sh $env" \
+                $' $*\n' >> "$TMPDIR/makefile"
+            for c in $(seq $(n_copies $env)); do
                 TARGETS="$TARGETS $OUT_DIR/copy$c.out"
             done
         done
@@ -96,7 +98,7 @@ else
     NUM_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
     echo "Max threads: $NUM_THREADS" 1>&2
     make --keep-going -j "$NUM_THREADS" \
-        -f "$TMPDIR/makefile" 1>&2 || true
+        -f "$TMPDIR/makefile" 2>&1 || true
 fi
 
 mkdir "$TMPDIR/plots"
