@@ -103,11 +103,13 @@ fi
 
 mkdir "$TMPDIR/plots"
 for env in $(ls benchmarks/results); do
-    echo "# steps reward variant" > "$TMPDIR/plots/$env"
-    for file in $(find "benchmarks/results/$env" -mindepth 1 -maxdepth 1); do
-        variant="${file##*/}"
+    for dir in $(find "benchmarks/results/$env" \
+            -mindepth 1 -maxdepth 1 -type d); do
+        [ -e "$TMPDIR/plots/$env" ] || \
+            echo "# steps reward variant" > "$TMPDIR/plots/$env"
+        variant="${dir##*/}"
         [ "x${variant::2}" != x__ ] || PLOT="${variant:2}_new"
-        cat $(find "$file" -maxdepth 1 -type f -name '*.out') | \
+        cat $(find "$dir" -maxdepth 1 -type f -name '*.out') | \
             grep -v '^#' | \
             while read -r steps reward x; do
                 echo "$steps $reward $variant"
