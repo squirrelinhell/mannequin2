@@ -74,7 +74,7 @@ else
             SCRIPT="'"$script"'"
             INFO="${SCRIPT##*/} on $ENV ($2)"
             export LOG_FILE="'"$TMPDIR"'/results/${ENV}_${SCRIPT##*/}_$2.out"
-            OUT_FILE="benchmarks/__results_${ENV}_${SCRIPT##*/}/$2.out"
+            OUT_FILE="benchmarks/results/${ENV}/__${SCRIPT##*/}/$2.out"
             echo "Running $INFO..."
             TIME_MSG=$({ time { python3 "$SCRIPT" 1>&3 2>&3; } } 3>&2 2>&1) || exit 1
             echo "Finished $INFO: $(echo $TIME_MSG)"
@@ -82,7 +82,7 @@ else
             mv "$LOG_FILE" "$OUT_FILE" || exit 1
         ' > "$script.sh"
         for env in $ENVS; do
-            OUT_DIR="benchmarks/__results_${env}_${script##*/}"
+            OUT_DIR="benchmarks/results/${env}/__${script##*/}"
             echo "$OUT_DIR/%.out:"$'\n\t@'"/bin/bash $script.sh $env" \
                 $' $*\n' >> "$TMPDIR/makefile"
             for c in $(seq $(n_copies $env)); do
@@ -102,26 +102,18 @@ else
 fi
 
 mkdir "$TMPDIR/plots"
-for dir in $(find benchmarks -mindepth 1 -maxdepth 1 -type d \
-        -name '*results_*' | sort); do
-    PLOT="${dir##*/}"
-    [ "x${PLOT::2}" != x__ ] || PLOT="${PLOT:2}_new"
-    PLOT="${PLOT#results_}"
-    VARIANT="${PLOT#*_}"
-    PLOT="${PLOT%%_*}"
-    [ -e "$TMPDIR/plots/$PLOT" ] || \
-        echo "# steps reward variant" > "$TMPDIR/plots/$PLOT"
-    if [ -e "$TMPDIR/done_${PLOT}_$VARIANT" ]; then
-        echo "Error: conflicting names: '${PLOT}_$VARIANT'" 1>&2
-        exit 1
-    fi
-    touch "$TMPDIR/done_${PLOT}_$VARIANT"
-    cat $(find "$dir" -maxdepth 1 -type f -name '*.out') | \
-        grep -v '^#' | \
-        while read -r steps reward x; do
-            echo "$steps $reward $VARIANT"
-        done \
-        >> "$TMPDIR/plots/$PLOT"
+for env in $(ls benchmarks/results); do
+    echo "# steps reward variant" > "$TMPDIR/plots/$env"
+    for file in $(find "benchmarks/results/$env" -mindepth 1 -maxdepth 1); do
+        variant="${file##*/}"
+        [ "x${variant::2}" != x__ ] || PLOT="${variant:2}_new"
+        cat $(find "$file" -maxdepth 1 -type f -name '*.out') | \
+            grep -v '^#' | \
+            while read -r steps reward x; do
+                echo "$steps $reward $variant"
+            done \
+            >> "$TMPDIR/plots/$env"
+    done
 done
 
 for plot in $(ls "$TMPDIR/plots"); do
@@ -131,7 +123,7 @@ for plot in $(ls "$TMPDIR/plots"); do
         lander*) PLOT_OPTS=(--mean --ymin=-300 --ymax=300) ;;
         *) PLOT_OPTS=(--mean) ;;
     esac
-    PLOT_FILE="benchmarks/__$plot.png" \
+    PLOT_FILE="benchmarks/results/__$plot.png" \
         marginal-plot "${PLOT_OPTS[@]}" "$TMPDIR/plots/$plot" \
             reward steps variant || exit 1
 done
