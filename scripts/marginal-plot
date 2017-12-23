@@ -164,7 +164,8 @@ def build_plot(input_file, *columns,
                     label=" " + str(cls),
                     **opts
                 )
-            ax.legend(loc=3, title=cls_column[0])
+            ax.legend(title=cls_column[0], loc="best",
+                fancybox=True, framealpha=0.5)
         ax.grid()
         format_ax(lambda prop: getattr(ax, prop % "x"), xs[0], xmin, xmax)
         format_ax(lambda prop: getattr(ax, prop % "y"), ys[0], ymin, ymax)

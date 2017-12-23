@@ -8,21 +8,7 @@ sys.path.append("..")
 from mannequin import RunningNormalize, Adam, Trajectory, SimplePredictor
 from mannequin.gym import NormalizedObservations, episode, one_step
 
-def discounting(env, *, horizon=500):
-    buf = []
-
-    def get_chunk(policy, length):
-        nonlocal buf
-        while len(buf) < length:
-            t = episode(env, policy).discounted(horizon=horizon)
-            buf = t if len(buf) <= 0 else buf.joined(t)
-        ret = buf[:length]
-        buf = buf[length:] if len(buf) >= length + 1 else []
-        return ret
-
-    return get_chunk
-
-def gae(env, *, gam=0.99, lam=0.95):
+def gae(env, policy, *, gam=0.99, lam=0.95):
     rng = np.random.RandomState()
     hist = []
 
@@ -31,9 +17,9 @@ def gae(env, *, gam=0.99, lam=0.95):
         env.observation_space.low.size
     )
 
-    def get_chunk(policy, length):
+    def get_chunk():
         nonlocal hist
-        length = int(length)
+        length = 2048
 
         # Run steps in the environment
         while len(hist) < length + 1:
@@ -62,9 +48,9 @@ def gae(env, *, gam=0.99, lam=0.95):
 
         # Train the value predictor before returning
         learn_traj = Trajectory(traj.o, (adv + value)[:length])
-        for _ in range(320):
+        for _ in range(300):
             idx = rng.randint(len(learn_traj), size=64)
-            value_predictor.sgd_step(learn_traj[idx], lr=0.001)
+            value_predictor.sgd_step(learn_traj[idx], lr=0.003)
 
         return traj
 
@@ -79,16 +65,16 @@ def run():
     opt = Adam(logprob.get_params(), horizon=10)
 
     normalize = RunningNormalize(horizon=2)
-    get_chunk = gae(env) ### discounting / gae
+    get_chunk = gae(env, logprob.sample)
 
     while get_progress() < 1.0:
-        traj = get_chunk(logprob.sample, 2048)
+        traj = get_chunk()
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
 
         baseline = logprob(traj.o, sample=traj.a)
 
-        for _ in range(320):
+        for _ in range(300):
             idx = np.random.randint(len(traj), size=64)
             logp, backprop = logprob.evaluate(traj.o[idx],
                 sample=traj.a[idx])

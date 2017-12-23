@@ -5,7 +5,7 @@ import numpy as np
 import gym
 
 sys.path.append("..")
-from mannequin import RunningNormalize, Adams
+from mannequin import RunningNormalize, Adam
 from mannequin.basicnet import LReLU
 from mannequin.gym import episode
 
@@ -14,14 +14,7 @@ def run():
     env = build_env()
 
     policy = mlp_policy(env, hid_layers=1, activation=LReLU)
-
-    opt = Adams(
-        policy.get_params(),
-        lr=0.00005,
-        horizon=5,
-        epsilon=4e-8
-    )
-
+    opt = Adam(policy.get_params(), horizon=10)
     normalize = RunningNormalize(horizon=10)
 
     while get_progress() < 1.0:
@@ -31,7 +24,7 @@ def run():
         traj = traj.modified(rewards=np.tanh)
 
         _, backprop = policy.evaluate(traj.o, sample=traj.a)
-        opt.apply_gradient(backprop(traj.r))
+        opt.apply_gradient(backprop(traj.r), lr=0.01)
         policy.load_params(opt.get_value())
 
 if __name__ == "__main__":
