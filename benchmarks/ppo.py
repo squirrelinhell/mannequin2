@@ -33,10 +33,13 @@ def gae(env, policy, *, gam=0.99, lam=0.95):
         # Compute advantages
         adv = np.zeros(length + 1, dtype=np.float32)
         for i in range(length-1, -1, -1):
-            adv[i] = hist[i][2] - value[i]
-            if not hist[i][3]:
-                # The next step is a continuation of this episode
-                adv[i] += gam * (value[i+1] + lam * adv[i+1])
+            if hist[i][3]:
+                # Last step of the episode
+                adv[i] = hist[i][2] - value[i]
+            else:
+                # The next step is a continuation
+                adv[i] = hist[i][2] + gam * value[i+1] - value[i]
+                adv[i] += gam * lam * adv[i+1]
 
         # Return a joined trajectory with advantages as rewards
         traj = Trajectory(
