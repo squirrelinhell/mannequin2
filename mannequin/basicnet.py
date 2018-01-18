@@ -58,30 +58,29 @@ class Layer(object):
         outs, _ = self.evaluate(inps, **kwargs)
         return outs
 
-def equalized_columns(inps, outs):
+def normed_columns(inps, outs):
     m = np.random.randn(inps, outs)
-    return m / np.sqrt(np.mean(np.square(m), axis=0))
+    return m / np.sqrt(np.sum(np.square(m), axis=0))
 
 class Linear(Layer):
-    def __init__(self, inner, n_outputs, *, init=equalized_columns):
+    def __init__(self, inner, n_outputs, *, init=normed_columns):
         if callable(init):
             params = init(inner.n_outputs, n_outputs).astype(np.float32)
         else:
-            params = (float(init) * equalized_columns(inner.n_outputs,
+            params = (float(init) * normed_columns(inner.n_outputs,
                 n_outputs)).astype(np.float32)
-        multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
 
         def evaluate(inps, **kwargs):
             inps, inner_backprop = inner.evaluate(inps, **kwargs)
             def backprop(grad):
                 nonlocal inps
                 inps = np.reshape(inps, (-1, inner.n_outputs))
-                grad = np.reshape(grad, (-1, n_outputs)) * multiplier
+                grad = np.reshape(grad, (-1, n_outputs))
                 return np.concatenate((
                     inner_backprop(np.dot(grad, params.T)),
                     np.dot(inps.T, grad).reshape(-1) / len(grad)
                 ), axis=0)
-            return np.dot(inps, params) * multiplier, backprop
+            return np.dot(inps, params), backprop
 
         super().__init__(inner, evaluate=evaluate,
             n_outputs=n_outputs, params=params)

@@ -3,7 +3,7 @@ import inspect
 import autograd
 import autograd.numpy as np
 
-from mannequin.basicnet import Layer, Input, equalized_columns
+from mannequin.basicnet import Layer, Input, normed_columns
 
 class AutogradLayer(Layer):
     def __init__(self, inner, *, f, params=None, **layer_args):
@@ -46,11 +46,10 @@ class AutogradLayer(Layer):
         super().__init__(inner, evaluate=evaluate,
             params=params, **layer_args)
 
-def Linear(inner, n_outputs, *, init=equalized_columns):
+def Linear(inner, n_outputs, *, init=normed_columns):
     params = init(inner.n_outputs, n_outputs).astype(np.float32)
-    multiplier = 1.0 / np.sqrt(float(inner.n_outputs))
     return AutogradLayer(inner, n_outputs=n_outputs,
-        f=lambda i, w: np.dot(i, w) * multiplier, params=params)
+        f=np.dot, params=params)
 
 def Bias(inner, *, init=np.zeros):
     params = init(inner.n_outputs).astype(np.float32)

@@ -44,7 +44,7 @@ class SimplePredictor(object):
             else:
                 return outs
 
-        def sgd_step(traj, labels=None, *, lr=0.04):
+        def sgd_step(traj, labels=None, *, lr=0.01):
             if labels is not None:
                 traj = Trajectory(traj, labels)
                 del labels
