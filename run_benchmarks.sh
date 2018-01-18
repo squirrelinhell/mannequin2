@@ -98,7 +98,8 @@ else
     [ "x$N_THREADS" != x ] \
         || N_THREADS=$(grep -c ^processor /proc/cpuinfo) || exit 1
     echo "Max threads: $N_THREADS" 1>&2
-    make -j "$N_THREADS" -f "$TMPDIR/makefile" 2>&1 || exit 1
+    make --keep-going -j "$N_THREADS" \
+        -f "$TMPDIR/makefile" 2>&1 || exit 1
 fi
 
 mkdir "$TMPDIR/plots"
