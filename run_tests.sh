@@ -48,7 +48,8 @@ if [ $(wc -l <<<"$FILES") = 1 ]; then
     [ -f "$FILES" ] || TEST_FILE="tests/$FILES.py"
     cat "$FILES" > "$TMPDIR/run" || exit 1
     echo "$DEBUG_SETUP" "$TEST_SETUP" > "$TMPDIR/test_setup.py"
-    exec python3 "$TMPDIR/run"
+    python3 "$TMPDIR/run"
+    exit $?
 fi
 
 for file in $FILES; do

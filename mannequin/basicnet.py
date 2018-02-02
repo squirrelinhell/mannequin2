@@ -1,5 +1,7 @@
 
+import inspect
 import numpy as np
+import mannequin.backprop as backprop
 
 class Input(object):
     def __init__(self, n_inputs):
@@ -24,9 +26,11 @@ class Input(object):
 
 class Layer(object):
     def __init__(self, inner, *,
-            evaluate, n_outputs=None, params=None):
+            f, n_outputs=None, params=None):
         if n_outputs is None:
             n_outputs = inner.n_outputs
+
+        f_spec = inspect.getfullargspec(f)
 
         def get_params(*, output=None):
             if output is None:
@@ -41,6 +45,42 @@ class Layer(object):
             new_val = new_val.reshape(-1)
             params[:] = new_val[-params.size:].reshape(params.shape)
             inner.load_params(new_val[:-params.size])
+
+        def evaluate(inps, **kwargs):
+            inps = np.asarray(inps, dtype=np.float32)
+            inps, inner_backprop = inner.evaluate(inps)
+            assert inps.shape[-1] == inner.n_outputs
+
+            if params is None:
+                f_value, f_backprop = f(inps, **kwargs)
+            else:
+                f_value, f_backprop = f(inps, params, **kwargs)
+            assert f_value.shape[-1] == n_outputs
+            f_value.setflags(write=False)
+
+            def backprop(grad):
+                grad = np.asarray(grad, dtype=np.float32)
+                assert grad.shape == f_value.shape
+                grad = f_backprop(grad)
+
+                inps_grad = grad[f_spec.args[0]]
+                assert inps_grad.shape == inps.shape
+
+                if params is None:
+                    return inner_backprop(inps_grad)
+                else:
+                    params_grad = grad[f_spec.args[1]]
+                    assert params_grad.shape == params.shape
+
+                    if len(f_value.shape) >= 2:
+                        params_grad /= np.prod(f_value.shape[:-1])
+
+                    return np.concatenate((
+                        inner_backprop(inps_grad),
+                        params_grad.reshape(-1)
+                    ), axis=0)
+
+            return f_value, backprop
 
         self.evaluate = evaluate
         self.n_outputs = n_outputs
@@ -59,76 +99,28 @@ class Layer(object):
         return outs
 
 def normed_columns(inps, outs):
-    m = np.random.randn(inps, outs)
+    m = np.random.randn(inps, outs).astype(np.float32)
     return m / np.sqrt(np.sum(np.square(m), axis=0))
 
-class Linear(Layer):
-    def __init__(self, inner, n_outputs, *, init=normed_columns):
-        if callable(init):
-            params = init(inner.n_outputs, n_outputs).astype(np.float32)
-        else:
-            params = (float(init) * normed_columns(inner.n_outputs,
-                n_outputs)).astype(np.float32)
+def Linear(inner, n_outputs, *, init=normed_columns):
+    if callable(init):
+        params = init(inner.n_outputs, n_outputs).astype(np.float32)
+    else:
+        params = normed_columns(inner.n_outputs, n_outputs)
+        params *= float(init)
 
-        def evaluate(inps, **kwargs):
-            inps, inner_backprop = inner.evaluate(inps, **kwargs)
-            def backprop(grad):
-                nonlocal inps
-                inps = np.reshape(inps, (-1, inner.n_outputs))
-                grad = np.reshape(grad, (-1, n_outputs))
-                return np.concatenate((
-                    inner_backprop(np.dot(grad, params.T)),
-                    np.dot(inps.T, grad).reshape(-1) / len(grad)
-                ), axis=0)
-            return np.dot(inps, params), backprop
+    return Layer(inner, f=backprop.matmul,
+        n_outputs=n_outputs, params=params)
 
-        super().__init__(inner, evaluate=evaluate,
-            n_outputs=n_outputs, params=params)
+def Bias(inner, *, init=np.zeros):
+    params = init(inner.n_outputs).astype(np.float32)
+    return Layer(inner, f=backprop.add, params=params)
 
-class Bias(Layer):
-    def __init__(self, inner, *, init=np.zeros):
-        params = init(inner.n_outputs).astype(np.float32)
+def LReLU(inner, *, leak=0.1):
+    return Layer(inner, f=lambda a: backprop.relu(a, leak=leak))
 
-        def evaluate(inps, **kwargs):
-            inps, inner_backprop = inner.evaluate(inps, **kwargs)
-            def backprop(grad):
-                grad = np.reshape(grad, (-1, inner.n_outputs))
-                return np.concatenate((
-                    inner_backprop(grad),
-                    np.mean(grad, axis=0)
-                ), axis=0)
-            return inps + params, backprop
-
-        super().__init__(inner, evaluate=evaluate, params=params)
-
-class LReLU(Layer):
-    def __init__(self, inner, *, leak=0.1):
-        leak = float(leak)
-
-        def evaluate(inps, **kwargs):
-            inps, inner_backprop = inner.evaluate(inps, **kwargs)
-            negative = inps < 0.0
-            def backprop(grad):
-                grad = np.array(grad)
-                grad[negative] *= leak
-                return inner_backprop(grad)
-            inps = np.array(inps)
-            inps[negative] *= leak
-            return inps, backprop
-
-        super().__init__(inner, evaluate=evaluate)
-
-class Tanh(Layer):
-    def __init__(self, inner):
-        def evaluate(inps, **kwargs):
-            inps, inner_backprop = inner.evaluate(inps, **kwargs)
-            tanh = np.tanh(inps)
-            def backprop(grad):
-                dtanh = 1.0 - np.square(tanh)
-                return inner_backprop(grad * dtanh)
-            return tanh, backprop
-
-        super().__init__(inner, evaluate=evaluate)
+def Tanh(inner):
+    return Layer(inner, f=backprop.tanh)
 
 def Affine(*args, **kwargs):
     return Bias(Linear(*args, **kwargs))
