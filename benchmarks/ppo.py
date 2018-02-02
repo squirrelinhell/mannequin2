@@ -87,7 +87,7 @@ def run():
             grad[np.logical_and(grad < 0.8, traj.r[idx] < 0.0)] = 0.0
             grad *= traj.r[idx]
 
-            opt.apply_gradient(backprop(grad[:,None]), lr=0.0003)
+            opt.apply_gradient(backprop(grad), lr=0.0003)
             logprob.load_params(opt.get_value())
 
 if __name__ == '__main__':

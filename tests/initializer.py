@@ -30,4 +30,4 @@ check_std(Affine, dims=rand_dims)
 check_std(mannequin.autograd.Affine, dims=lambda: (5, 20))
 check_std(lambda *p: Linear(*p, init=10.0), dims=rand_dims, ci=(9.7, 10.3))
 
-assert timer(print_info=False) < 1.0
+assert timer() < 1.0

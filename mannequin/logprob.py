@@ -1,10 +1,11 @@
 
-from mannequin.basicnet import Layer
+import numpy as np
+
+from mannequin.basicnet import Params, Layer
+from mannequin.backprop import backprop
 
 class Discrete(Layer):
     def __init__(self, *, logits):
-        import numpy as np
-
         n = logits.n_outputs
         rng = np.random.RandomState()
         eye = np.eye(n, dtype=np.float32)
@@ -18,42 +19,41 @@ class Discrete(Layer):
         def sample(inps):
             return rng.choice(n, p=softmax(logits(inps)))
 
+        @backprop
         def f(logits, *, sample):
             sample = np.asarray(sample, dtype=np.int32).reshape(-1)
             logits = logits.reshape(len(sample), n)
             probs = softmax(logits)
             return (
-                np.log([[o[s]] for o, s in zip(probs, sample)]),
-                lambda g: {
-                    "logits": np.multiply(
-                        (eye[sample] - probs).T,
-                        np.reshape(g, -1)
-                    ).T
-                }
+                np.log([o[s] for o, s in zip(probs, sample)]),
+                lambda g: (g.T * (eye[sample] - probs).T).T
             )
 
-        super().__init__(logits, f=f, n_outputs=1)
+        super().__init__(logits, f=f, output_shape=())
         self.sample = sample
 
 class Gauss(Layer):
-    def __init__(self, *, mean):
+    def __init__(self, *, mean, logstd=None):
         import autograd.numpy as np
-        from mannequin.autograd import wrap
+        from mannequin.autograd import backprop
+
+        logstd = logstd or Params(mean.n_outputs)
+        assert logstd.output_shape == (mean.n_outputs,)
 
         rng = np.random.RandomState()
-        logstd = np.zeros(mean.n_outputs, dtype=np.float32)
-        const = 0.5 * len(logstd) * np.log(2.0 * np.pi)
+        const = -0.5 * mean.n_outputs * np.log(2.0 * np.pi)
 
         def sample(obs):
-            m = mean(obs)
-            return m + rng.randn(*m.shape) * np.exp(logstd)
+            m, l = mean(obs), logstd(obs)
+            return m + rng.randn(*m.shape) * np.exp(l)
 
+        @backprop
         def f(mean, logstd, *, sample):
-            return -0.5 * np.sum(
-                np.square((sample - mean) / np.exp(logstd)),
-                axis=-1,
-                keepdims=True
-            ) - (np.sum(logstd) + const)
+            return const - np.sum(
+                logstd + 0.5 *
+                    np.square((sample - mean) / np.exp(logstd)),
+                axis=-1
+            )
 
-        super().__init__(mean, f=wrap(f), n_outputs=1, params=logstd)
+        super().__init__(mean, logstd, f=f, output_shape=())
         self.sample = sample

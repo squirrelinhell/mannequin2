@@ -3,96 +3,164 @@ import inspect
 import numpy as np
 import mannequin.backprop as backprop
 
-class Input(object):
-    def __init__(self, n_inputs):
-        def load_params(params):
-            assert len(params) == 0
+def endswith(a, b):
+    if len(a) < len(b):
+        return False
+    return a[len(a)-len(b):] == b
 
-        def capture_gradient(grad):
-            self.last_gradient = grad
+class Input(object):
+    def __init__(self, *shape):
+        shape = tuple(int(s) for s in shape)
+
+        def backprop(grad):
+            assert endswith(grad.shape, shape)
+            grad.setflags(write=False)
+            self.last_gradient = grad[:]
             return []
 
         def evaluate(inps):
             inps = np.asarray(inps, dtype=np.float32)
-            if inps.shape[-1] != n_inputs:
-                inps = inps.reshape((-1, n_inputs))
-            return inps, capture_gradient
+            assert endswith(inps.shape, shape)
+            return inps, backprop
+
+        def load_params(params):
+            assert len(params) == 0
 
         self.evaluate = evaluate
-        self.n_outputs = n_inputs
+        self.output_shape = shape
         self.n_params = 0
-        self.get_params = lambda *, output=None: []
+        self.get_params = lambda: []
         self.load_params = load_params
 
-class Layer(object):
-    def __init__(self, inner, *,
-            f, n_outputs=None, params=None):
-        if n_outputs is None:
-            n_outputs = inner.n_outputs
+        if len(self.output_shape) == 1:
+            self.n_outputs = self.output_shape[0]
 
-        f_spec = inspect.getfullargspec(f)
+    def __call__(self, inps):
+        outs, _ = self.evaluate(inps)
+        return outs
+
+class Params(object):
+    def __init__(self, *shape, init=np.zeros):
+        shape = tuple(int(s) for s in shape)
+
+        value = np.array(init(*shape), dtype=np.float32).reshape(shape)
+        value.setflags(write=False)
+
+        def backprop(grad):
+            assert grad.shape == shape
+            return grad.reshape(value.size)
+
+        def evaluate(inps):
+            return value[:], backprop
 
         def get_params(*, output=None):
             if output is None:
-                output = np.zeros(self.n_params, dtype=np.float32)
+                output = np.zeros(value.size, dtype=np.float32)
             assert len(output.shape) == 1
-            output[-params.size:] = params.reshape(-1)
-            inner.get_params(output=output[:-params.size])
+            output[:] = value.reshape(-1)
             return output
 
-        def load_params(new_val):
-            new_val = np.asarray(new_val, dtype=params.dtype)
-            new_val = new_val.reshape(-1)
-            params[:] = new_val[-params.size:].reshape(params.shape)
-            inner.load_params(new_val[:-params.size])
+        def load_params(new_value):
+            value.setflags(write=True)
+            value[:] = new_value.reshape(shape)
+            value.setflags(write=False)
+
+        self.evaluate = evaluate
+        self.output_shape = shape
+        self.n_params = value.size
+        self.get_params = get_params
+        self.load_params = load_params
+
+        if len(self.output_shape) == 1:
+            self.n_outputs = self.output_shape[0]
+
+    def __call__(self, inps):
+        outs, _ = self.evaluate(inps)
+        return outs
+
+class Layer(object):
+    def __init__(self, *args, f, output_shape=None, params=None):
+        assert len(args) >= 1
+        assert len(inspect.getfullargspec(f).args) == len(args)
+
+        if output_shape is None:
+            output_shape = args[0].output_shape
 
         def evaluate(inps, **kwargs):
             inps = np.asarray(inps, dtype=np.float32)
-            inps, inner_backprop = inner.evaluate(inps)
-            assert inps.shape[-1] == inner.n_outputs
+            inps, inp_bpps = zip(*[a.evaluate(inps) for a in args])
 
-            if params is None:
-                f_value, f_backprop = f(inps, **kwargs)
-            else:
-                f_value, f_backprop = f(inps, params, **kwargs)
-            assert f_value.shape[-1] == n_outputs
+            # Require correct shapes
+            assert len(inps) == len(args)
+            for i, a in zip(inps, args):
+                assert endswith(i.shape, a.output_shape)
+
+            f_value, f_backprop = f(*inps, **kwargs)
+            assert endswith(f_value.shape, output_shape)
             f_value.setflags(write=False)
 
             def backprop(grad):
                 grad = np.asarray(grad, dtype=np.float32)
                 assert grad.shape == f_value.shape
-                grad = f_backprop(grad)
+                inp_grads = f_backprop(grad)
 
-                inps_grad = grad[f_spec.args[0]]
-                assert inps_grad.shape == inps.shape
+                # Require correct shapes
+                assert isinstance(inp_grads, tuple)
+                assert len(inp_grads) >= len(inps)
+                for a, b in zip(inps, inp_grads):
+                    assert a.shape == b.shape
 
-                if params is None:
-                    return inner_backprop(inps_grad)
-                else:
-                    params_grad = grad[f_spec.args[1]]
-                    assert params_grad.shape == params.shape
+                # Average gradients in batches
+                if len(f_value.shape) > len(output_shape):
+                    batch = len(f_value.shape) - len(output_shape)
+                    batch = np.prod(f_value.shape[:batch])
+                    inp_grads = [
+                        g / batch if isinstance(a, Params) else g
+                        for g, a in zip(inp_grads, args)
+                    ]
 
-                    if len(f_value.shape) >= 2:
-                        params_grad /= np.prod(f_value.shape[:-1])
+                if len(inps) == 1:
+                    return inp_bpps[0](inp_grads[0])
 
-                    return np.concatenate((
-                        inner_backprop(inps_grad),
-                        params_grad.reshape(-1)
-                    ), axis=0)
+                return np.concatenate(
+                    [b(g) for b, g in zip(inp_bpps, inp_grads)],
+                    axis=0
+                )
 
             return f_value, backprop
 
-        self.evaluate = evaluate
-        self.n_outputs = n_outputs
+        def get_params(*, output=None):
+            if output is None:
+                output = np.zeros(self.n_params, dtype=np.float32)
+            assert output.shape == (self.n_params,)
 
-        if params is None:
-            self.n_params = inner.n_params
-            self.get_params = inner.get_params
-            self.load_params = inner.load_params
-        else:
-            self.n_params = inner.n_params + params.size
-            self.get_params = get_params
-            self.load_params = load_params
+            pos = 0
+            for a in args:
+                if a.n_params >= 1:
+                    a.get_params(output=output[pos:pos+a.n_params])
+                    pos += a.n_params
+            assert pos == self.n_params
+
+            return output
+
+        def load_params(new_value):
+            assert new_value.shape == (self.n_params,)
+
+            pos = 0
+            for a in args:
+                if a.n_params >= 1:
+                    a.load_params(new_value[pos:pos+a.n_params])
+                    pos += a.n_params
+            assert pos == self.n_params
+
+        self.evaluate = evaluate
+        self.output_shape = output_shape
+        self.n_params = sum(a.n_params for a in args)
+        self.get_params = get_params
+        self.load_params = load_params
+
+        if len(self.output_shape) == 1:
+            self.n_outputs = self.output_shape[0]
 
     def __call__(self, inps, **kwargs):
         outs, _ = self.evaluate(inps, **kwargs)
@@ -103,18 +171,14 @@ def normed_columns(inps, outs):
     return m / np.sqrt(np.sum(np.square(m), axis=0))
 
 def Linear(inner, n_outputs, *, init=normed_columns):
-    if callable(init):
-        params = init(inner.n_outputs, n_outputs).astype(np.float32)
-    else:
-        params = normed_columns(inner.n_outputs, n_outputs)
-        params *= float(init)
-
-    return Layer(inner, f=backprop.matmul,
-        n_outputs=n_outputs, params=params)
+    if not callable(init):
+        init = (lambda m: lambda *s: normed_columns(*s) * m)(float(init))
+    return Layer(inner, Params(inner.n_outputs, n_outputs, init=init),
+        f=backprop.matmul, output_shape=(n_outputs,))
 
 def Bias(inner, *, init=np.zeros):
-    params = init(inner.n_outputs).astype(np.float32)
-    return Layer(inner, f=backprop.add, params=params)
+    return Layer(inner, Params(*inner.output_shape, init=init),
+        f=backprop.add)
 
 def LReLU(inner, *, leak=0.1):
     return Layer(inner, f=lambda a: backprop.relu(a, leak=leak))
