@@ -1,10 +1,10 @@
 
 import numpy as np
 
-from mannequin.basicnet import Params, Layer
+from mannequin.basicnet import Params, Function
 from mannequin.backprop import autograd
 
-class Discrete(Layer):
+class Discrete(Function):
     def __init__(self, *, logits):
         n = logits.n_outputs
         rng = np.random.RandomState()
@@ -28,15 +28,15 @@ class Discrete(Layer):
                 lambda g: ((g.T * (eye[sample] - probs).T).T,)
             )
 
-        super().__init__(logits, f=f, output_shape=())
+        super().__init__(logits, f=f, shape=())
         self.sample = sample
 
-class Gauss(Layer):
+class Gauss(Function):
     def __init__(self, *, mean, logstd=None):
         import autograd.numpy as np
 
         logstd = logstd or Params(mean.n_outputs)
-        assert logstd.output_shape == (mean.n_outputs,)
+        assert logstd.shape == (mean.n_outputs,)
 
         rng = np.random.RandomState()
         const = -0.5 * mean.n_outputs * np.log(2.0 * np.pi)
@@ -53,5 +53,5 @@ class Gauss(Layer):
                 axis=-1
             )
 
-        super().__init__(mean, logstd, f=f, output_shape=())
+        super().__init__(mean, logstd, f=f, shape=())
         self.sample = sample
