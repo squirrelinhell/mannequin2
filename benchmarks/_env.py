@@ -8,7 +8,7 @@ import numpy as np
 sys.path.append("..")
 from mannequin import bar
 from mannequin.basicnet import Input, Affine, Tanh
-from mannequin.logprob import Discrete, Gauss
+from mannequin.distrib import Discrete, Gauss
 from mannequin.gym import PrintRewards, ClippedActions
 
 get_progress = None

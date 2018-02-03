@@ -4,7 +4,7 @@ import numpy as np
 from mannequin.basicnet import Params, Function
 from mannequin.backprop import autograd
 
-class Discrete(Function):
+class Discrete(object):
     def __init__(self, *, logits):
         n = logits.n_outputs
         rng = np.random.RandomState()
@@ -19,7 +19,7 @@ class Discrete(Function):
         def sample(inps):
             return rng.choice(n, p=softmax(logits(inps)))
 
-        def f(logits, *, sample):
+        def logprob(logits, *, sample):
             sample = np.asarray(sample, dtype=np.int32).reshape(-1)
             logits = logits.reshape(len(sample), n)
             probs = softmax(logits)
@@ -28,15 +28,18 @@ class Discrete(Function):
                 lambda g: ((g.T * (eye[sample] - probs).T).T,)
             )
 
-        super().__init__(logits, f=f, shape=())
         self.sample = sample
+        self.logprob = Function(logits, f=logprob, shape=())
+        self.n_params = self.logprob.n_params
+        self.get_params = self.logprob.get_params
+        self.load_params = self.logprob.load_params
 
-class Gauss(Function):
+class Gauss(object):
     def __init__(self, *, mean, logstd=None):
         import autograd.numpy as np
 
         logstd = logstd or Params(mean.n_outputs)
-        assert logstd.shape == (mean.n_outputs,)
+        assert logstd.n_outputs == mean.n_outputs
 
         rng = np.random.RandomState()
         const = -0.5 * mean.n_outputs * np.log(2.0 * np.pi)
@@ -46,12 +49,15 @@ class Gauss(Function):
             return m + rng.randn(*m.shape) * np.exp(l)
 
         @autograd
-        def f(mean, logstd, *, sample):
+        def logprob(mean, logstd, *, sample):
             return const - np.sum(
                 logstd + 0.5 *
                     np.square((sample - mean) / np.exp(logstd)),
                 axis=-1
             )
 
-        super().__init__(mean, logstd, f=f, shape=())
         self.sample = sample
+        self.logprob = Function(mean, logstd, f=logprob, shape=())
+        self.n_params = self.logprob.n_params
+        self.get_params = self.logprob.get_params
+        self.load_params = self.logprob.load_params

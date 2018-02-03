@@ -23,7 +23,7 @@ def run():
         traj = traj.modified(rewards=normalize)
         traj = traj.modified(rewards=np.tanh)
 
-        _, backprop = policy.evaluate(traj.o, sample=traj.a)
+        _, backprop = policy.logprob.evaluate(traj.o, sample=traj.a)
         opt.apply_gradient(backprop(traj.r), lr=0.001)
         policy.load_params(opt.get_value())
 
