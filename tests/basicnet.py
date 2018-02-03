@@ -1,7 +1,6 @@
 
 import numpy as np
 import mannequin.basicnet
-import mannequin.autograd
 from test_setup import timer
 
 def test_module(net):
@@ -35,9 +34,3 @@ for v in vs:
     print(v)
 
 assert timer(print_info=False) < 0.01
-
-assert all(np.allclose(a, b) for a, b in zip(
-    vs, test_module(mannequin.autograd)
-))
-
-assert timer(print_info=False) < 0.05

@@ -2,7 +2,7 @@
 import numpy as np
 
 from mannequin.basicnet import Params, Layer
-from mannequin.backprop import backprop
+from mannequin.backprop import autograd
 
 class Discrete(Layer):
     def __init__(self, *, logits):
@@ -19,14 +19,13 @@ class Discrete(Layer):
         def sample(inps):
             return rng.choice(n, p=softmax(logits(inps)))
 
-        @backprop
         def f(logits, *, sample):
             sample = np.asarray(sample, dtype=np.int32).reshape(-1)
             logits = logits.reshape(len(sample), n)
             probs = softmax(logits)
             return (
                 np.log([o[s] for o, s in zip(probs, sample)]),
-                lambda g: (g.T * (eye[sample] - probs).T).T
+                lambda g: ((g.T * (eye[sample] - probs).T).T,)
             )
 
         super().__init__(logits, f=f, output_shape=())
@@ -35,7 +34,6 @@ class Discrete(Layer):
 class Gauss(Layer):
     def __init__(self, *, mean, logstd=None):
         import autograd.numpy as np
-        from mannequin.autograd import backprop
 
         logstd = logstd or Params(mean.n_outputs)
         assert logstd.output_shape == (mean.n_outputs,)
@@ -47,7 +45,7 @@ class Gauss(Layer):
             m, l = mean(obs), logstd(obs)
             return m + rng.randn(*m.shape) * np.exp(l)
 
-        @backprop
+        @autograd
         def f(mean, logstd, *, sample):
             return const - np.sum(
                 logstd + 0.5 *

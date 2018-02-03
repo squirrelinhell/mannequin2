@@ -1,5 +1,4 @@
 
-import inspect
 import numpy as np
 import mannequin.backprop as backprop
 
@@ -10,18 +9,26 @@ def endswith(a, b):
 
 class Input(object):
     def __init__(self, *shape):
-        shape = tuple(int(s) for s in shape)
+        shape = tuple(max(1, int(s)) for s in shape)
+        assert len(shape) >= 1
 
-        def backprop(grad):
+        def backprop(grad, output=None):
             assert endswith(grad.shape, shape)
             grad.setflags(write=False)
             self.last_gradient = grad[:]
-            return []
+            return get_params(output=output)
 
         def evaluate(inps):
             inps = np.asarray(inps, dtype=np.float32)
             assert endswith(inps.shape, shape)
             return inps, backprop
+
+        def get_params(*, output=None):
+            if output is None:
+                return []
+            else:
+                assert len(output) == 0
+                return output
 
         def load_params(params):
             assert len(params) == 0
@@ -29,7 +36,7 @@ class Input(object):
         self.evaluate = evaluate
         self.output_shape = shape
         self.n_params = 0
-        self.get_params = lambda: []
+        self.get_params = get_params
         self.load_params = load_params
 
         if len(self.output_shape) == 1:
@@ -41,24 +48,28 @@ class Input(object):
 
 class Params(object):
     def __init__(self, *shape, init=np.zeros):
-        shape = tuple(int(s) for s in shape)
+        shape = tuple(max(1, int(s)) for s in shape)
+        assert len(shape) >= 1
 
         value = np.array(init(*shape), dtype=np.float32).reshape(shape)
         value.setflags(write=False)
 
-        def backprop(grad):
-            assert grad.shape == shape
-            return grad.reshape(value.size)
+        def backprop(grad, output=None):
+            if output is None:
+                return grad.reshape(value.size)
+            else:
+                output[:] = grad.reshape(value.size)
+                return output
 
         def evaluate(inps):
             return value[:], backprop
 
         def get_params(*, output=None):
             if output is None:
-                output = np.zeros(value.size, dtype=np.float32)
-            assert len(output.shape) == 1
-            output[:] = value.reshape(-1)
-            return output
+                return value.reshape(-1)
+            else:
+                output[:] = value.reshape(-1)
+                return output
 
         def load_params(new_value):
             value.setflags(write=True)
@@ -81,7 +92,6 @@ class Params(object):
 class Layer(object):
     def __init__(self, *args, f, output_shape=None, params=None):
         assert len(args) >= 1
-        assert len(inspect.getfullargspec(f).args) == len(args)
 
         if output_shape is None:
             output_shape = args[0].output_shape
@@ -99,7 +109,10 @@ class Layer(object):
             assert endswith(f_value.shape, output_shape)
             f_value.setflags(write=False)
 
-            def backprop(grad):
+            def backprop(grad, *, output=None):
+                if output is None:
+                    output = np.zeros(self.n_params, dtype=np.float32)
+
                 grad = np.asarray(grad, dtype=np.float32)
                 assert grad.shape == f_value.shape
                 inp_grads = f_backprop(grad)
@@ -119,13 +132,13 @@ class Layer(object):
                         for g, a in zip(inp_grads, args)
                     ]
 
-                if len(inps) == 1:
-                    return inp_bpps[0](inp_grads[0])
+                pos = 0
+                for a, bpp, g in zip(args, inp_bpps, inp_grads):
+                    bpp(g, output=output[pos:pos+a.n_params])
+                    pos += a.n_params
+                assert pos == self.n_params
 
-                return np.concatenate(
-                    [b(g) for b, g in zip(inp_bpps, inp_grads)],
-                    axis=0
-                )
+                return output
 
             return f_value, backprop
 
