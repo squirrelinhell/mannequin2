@@ -51,6 +51,23 @@ class Input(Layer):
 
         super().__init__(evaluate=evaluate, shape=shape)
 
+class Const(Layer):
+    def __init__(self, value):
+        value = np.array(value, dtype=np.float32)
+        assert len(value.shape) >= 1
+        value.setflags(write=False)
+
+        def backprop(grad, output=None):
+            assert endswith(grad.shape, value.shape)
+            grad.setflags(write=False)
+            self.last_gradient = grad[:]
+            return self.get_params(output=output)
+
+        def evaluate(inps):
+            return value[:], backprop
+
+        super().__init__(evaluate=evaluate, shape=value.shape)
+
 class Params(Layer):
     def __init__(self, *shape, init=np.zeros):
         shape = tuple(max(1, int(s)) for s in shape)

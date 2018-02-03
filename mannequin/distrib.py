@@ -36,27 +36,32 @@ class Discrete(object):
 
 class Gauss(object):
     def __init__(self, *, mean, logstd=None):
-        import autograd.numpy as np
-
         logstd = logstd or Params(mean.n_outputs)
-        assert logstd.n_outputs == mean.n_outputs
 
         rng = np.random.RandomState()
         const = -0.5 * mean.n_outputs * np.log(2.0 * np.pi)
 
-        def sample(obs):
-            m, l = mean(obs), logstd(obs)
-            return m + rng.randn(*m.shape) * np.exp(l)
+        def sample(mean, logstd):
+            noise = rng.randn(*mean.shape) * np.exp(logstd)
+            if mean.shape == logstd.shape:
+                return mean + noise, lambda g: (g, g * noise)
+            elif mean.shape[1:] == logstd.shape:
+                return (mean + noise,
+                    lambda g: (g, np.sum(g * noise, axis=0)))
+            else:
+                raise ValueError("Invalid shapes: %s, %s"
+                    % (mean.shape, logstd.shape))
 
         @autograd
         def logprob(mean, logstd, *, sample):
+            import autograd.numpy as np
             return const - np.sum(
                 logstd + 0.5 *
                     np.square((sample - mean) / np.exp(logstd)),
                 axis=-1
             )
 
-        self.sample = sample
+        self.sample = Function(mean, logstd, f=sample, shape=())
         self.logprob = Function(mean, logstd, f=logprob, shape=())
         self.n_params = self.logprob.n_params
         self.get_params = self.logprob.get_params
