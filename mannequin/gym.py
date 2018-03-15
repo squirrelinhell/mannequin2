@@ -71,7 +71,14 @@ class NormalizedObservations(gym.Wrapper):
             obs = np.clip(obs, -5.0, 5.0)
             return obs, reward, done, info
 
+        def do_reset():
+            obs = self.env._reset()
+            obs = normalize(obs)
+            obs = np.clip(obs, -5.0, 5.0)
+            return obs
+
         self._step = do_step
+        self._reset = do_reset
         self.get_mean = normalize.get_mean
         self.get_var = normalize.get_var
         self.get_std = normalize.get_std
