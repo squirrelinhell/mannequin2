@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
 import sys
-import gym
 import numpy as np
-
 sys.path.append("..")
-from mannequin import RunningNormalize, Adam
-from mannequin.basicnet import Input, Affine, Tanh
-from mannequin.gym import NormalizedObservations, ArgmaxActions, episode
 
 def run():
-    from _env import build_env, get_progress, mlp_policy
+    import gym
+    from mannequin import RunningNormalize, Adam
+    from mannequin.basicnet import Input, Affine, Tanh
+    from mannequin.gym import NormalizedObservations, ArgmaxActions, episode
+    from _env import build_env, get_progress
+
     env = build_env()
     env = NormalizedObservations(env)
 

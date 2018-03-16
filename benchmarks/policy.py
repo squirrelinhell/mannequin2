@@ -2,18 +2,37 @@
 
 import sys
 import numpy as np
-import gym
-
 sys.path.append("..")
-from mannequin import RunningNormalize, Adam
-from mannequin.basicnet import LReLU
-from mannequin.gym import episode
+
+def mlp_policy(env, *, hid_layers=2, hid_size=64):
+    import gym
+    from mannequin.basicnet import Input, Affine, Tanh
+    from mannequin.distrib import Discrete, Gauss
+
+    if isinstance(env.action_space, gym.spaces.Box):
+        action_size = env.action_space.low.size
+        Distribution = lambda p: Gauss(mean=p)
+    elif isinstance(env.action_space, gym.spaces.Discrete):
+        action_size = env.action_space.n
+        Distribution = lambda p: Discrete(logits=p)
+    else:
+        raise ValueError("Unsupported action space")
+
+    policy = Input(env.observation_space.low.size)
+    for _ in range(hid_layers):
+        policy = Tanh(Affine(policy, hid_size))
+    policy = Affine(policy, action_size, init=0.1)
+    policy = Distribution(policy)
+
+    return policy
 
 def run():
-    from _env import build_env, get_progress, mlp_policy
+    from mannequin import RunningNormalize, Adam
+    from mannequin.gym import episode
+    from _env import build_env, get_progress
     env = build_env()
 
-    policy = mlp_policy(env, hid_layers=1, activation=LReLU)
+    policy = mlp_policy(env)
     opt = Adam(policy.get_params(), horizon=10)
     normalize = RunningNormalize(horizon=10)
 

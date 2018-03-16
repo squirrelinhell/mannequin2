@@ -7,8 +7,6 @@ import numpy as np
 
 sys.path.append("..")
 from mannequin import bar
-from mannequin.basicnet import Input, Affine, Tanh
-from mannequin.distrib import Discrete, Gauss
 from mannequin.gym import PrintRewards, ClippedActions
 
 get_progress = None
@@ -114,21 +112,3 @@ def build_env():
     return configs["cartpole"]
 
 build_env = build_env()
-
-def mlp_policy(env, *, hid_layers=2, hid_size=64, activation=Tanh):
-    if isinstance(env.action_space, gym.spaces.Box):
-        action_size = env.action_space.low.size
-        Distribution = lambda p: Gauss(mean=p)
-    elif isinstance(env.action_space, gym.spaces.Discrete):
-        action_size = env.action_space.n
-        Distribution = lambda p: Discrete(logits=p)
-    else:
-        raise ValueError("Unsupported action space")
-
-    policy = Input(env.observation_space.low.size)
-    for _ in range(hid_layers):
-        policy = activation(Affine(policy, hid_size))
-    policy = Affine(policy, action_size, init=0.1)
-    policy = Distribution(policy)
-
-    return policy
