@@ -68,10 +68,10 @@ def build_env():
             env = PrintRewards(env, print=print_line,
                 every=max_steps // 100)
 
-            if "LOG_DIR" in os.environ:
+            if "VIDEO_DIR" in os.environ:
                 env = gym.wrappers.Monitor(
                     env,
-                    os.environ["LOG_DIR"],
+                    os.environ["VIDEO_DIR"],
                     video_callable=pop_wanted,
                     force=True
                 )

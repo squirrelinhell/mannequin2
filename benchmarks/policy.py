@@ -4,7 +4,7 @@ import sys
 import numpy as np
 sys.path.append("..")
 
-def mlp_policy(env, *, hid_layers=2, hid_size=64):
+def stochastic_policy(env, *, hid_layers=2, hid_size=64):
     import gym
     from mannequin.basicnet import Input, Affine, Tanh
     from mannequin.distrib import Discrete, Gauss
@@ -30,11 +30,11 @@ def run():
     from mannequin import RunningNormalize, Adam
     from mannequin.gym import episode
     from _env import build_env, get_progress
-    env = build_env()
 
-    policy = mlp_policy(env)
+    env = build_env()
+    policy = stochastic_policy(env)
     opt = Adam(policy.get_params(), horizon=10)
-    normalize = RunningNormalize(horizon=10)
+    normalize = RunningNormalize(horizon=2)
 
     while get_progress() < 1.0:
         traj = episode(env, policy.sample)
