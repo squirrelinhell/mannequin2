@@ -11,7 +11,7 @@ def endswith(a, b):
 class Layer(collections.namedtuple("Layer", " ".join((
         "inputs",
         "evaluate",
-        "evaluate_order",
+        "prerequisites",
         "shape",
         "n_params",
         "n_local_params",
@@ -29,9 +29,9 @@ class Layer(collections.namedtuple("Layer", " ".join((
         def dfs(to_visit, process_node):
             visited = set()
             def visit(node):
-                if id(node) in visited:
+                if node in visited:
                     return
-                visited.add(id(node))
+                visited.add(node)
                 for i in node.inputs:
                     visit(i)
                 process_node(node)
@@ -43,14 +43,14 @@ class Layer(collections.namedtuple("Layer", " ".join((
             assert len(inputs) == 0
             assert get_params is not None
             assert load_params is not None
-            exec_order = []
+            prerequisites = []
             n_params = n_local_params
 
         else:
             # Traverse the computation graph
-            exec_order = []
-            dfs(inputs, exec_order.append)
-            n_params = sum(l.n_local_params for l in exec_order)
+            prerequisites = []
+            dfs(inputs, prerequisites.append)
+            n_params = sum(l.n_local_params for l in prerequisites)
 
             def get_params(*, output=None):
                 if output is None:
@@ -58,7 +58,7 @@ class Layer(collections.namedtuple("Layer", " ".join((
                 assert output.shape == (n_params,)
 
                 pos = 0
-                for layer in exec_order:
+                for layer in prerequisites:
                     if layer.n_local_params >= 1:
                         layer.get_params(
                             output=output[pos:pos+layer.n_local_params]
@@ -72,7 +72,7 @@ class Layer(collections.namedtuple("Layer", " ".join((
                 assert new_value.shape == (n_params,)
 
                 pos = 0
-                for layer in exec_order:
+                for layer in prerequisites:
                     if layer.n_local_params >= 1:
                         layer.load_params(
                             new_value[pos:pos+layer.n_local_params]
@@ -81,7 +81,7 @@ class Layer(collections.namedtuple("Layer", " ".join((
                 assert pos == n_params
 
         return super().__new__(
-            cls, inputs, evaluate, tuple(exec_order),
+            cls, inputs, evaluate, tuple(prerequisites),
             shape, n_params, n_local_params,
             get_params, load_params, get_last_gradient
         )
@@ -181,56 +181,85 @@ def Function(*args, f, shape=None):
     if shape is None:
         shape = args[0].shape
 
-    def evaluate(array, **kwargs):
-        array = np.asarray(array, dtype=np.float32)
-        inps, inp_bpps = zip(*[a.evaluate(array) for a in args])
-
-        # Require correct shapes
-        assert len(inps) == len(args)
-        for i, a in zip(inps, args):
-            assert endswith(i.shape, a.shape)
-
-        f_value, f_backprop = f(*inps, **kwargs)
-        assert endswith(f_value.shape, shape)
-        f_value.setflags(write=False)
-
-        def backprop(grad, *, output=None):
-            if output is None:
-                output = np.zeros(self.n_params, dtype=np.float32)
-
-            grad = np.asarray(grad, dtype=np.float32)
-            assert grad.shape == f_value.shape
-            inp_grads = f_backprop(grad)
+    def evaluate(inps, **kwargs):
+        if isinstance(inps, dict):
+            inps = [inps[a] for a in args]
 
             # Require correct shapes
-            assert isinstance(inp_grads, tuple)
-            inp_grads = list(inp_grads)
-            assert len(inp_grads) >= len(inps)
-            for a, b in zip(inps, inp_grads):
-                assert a.shape == b.shape
+            for i, a in zip(inps, args):
+                assert endswith(i.shape, a.shape)
 
-            # Average gradients in batches
-            if len(f_value.shape) > len(shape):
-                batch = f_value.shape[:len(f_value.shape)-len(shape)]
+            f_value, f_backprop = f(*inps, **kwargs)
+            assert endswith(f_value.shape, shape)
+            f_value.setflags(write=False)
 
-                for i, g in enumerate(inp_grads):
-                    g_batch = g.shape[:len(g.shape)-len(args[i].shape)]
-                    assert endswith(batch, g_batch)
+            return f_value, f_backprop
 
-                    if len(g_batch) < len(batch):
-                        inp_grads[i] = g / np.prod(
-                            batch[:len(batch)-len(g_batch)]
+        else:
+            inps = np.asarray(inps, dtype=np.float32)
+            exec_order = self.prerequisites + (self,)
+            layer_outs = {}
+            layer_bpps = {}
+
+            for layer in exec_order:
+                out, bpp = layer.evaluate(
+                    layer_outs if len(layer.inputs) >= 1 else inps
+                )
+                layer_outs[layer] = out
+                layer_bpps[layer] = bpp
+
+            def backprop(grad, *, output=None):
+                grad = np.asarray(grad, dtype=np.float32)
+                assert grad.shape == layer_outs[self].shape
+                batch_shape = grad.shape[:len(grad.shape)-len(shape)]
+
+                layer_grads = {self: grad}
+
+                for layer in reversed(exec_order):
+                    if len(layer.inputs) <= 0:
+                        continue
+
+                    inp_grads = layer_bpps[layer](layer_grads[layer])
+                    del layer_grads[layer]
+
+                    assert isinstance(inp_grads, tuple)
+                    assert len(inp_grads) == len(layer.inputs)
+
+                    for g, i in zip(inp_grads, layer.inputs):
+                        assert g.shape == layer_outs[i].shape
+
+                        g_batch = g.shape[:len(g.shape)-len(i.shape)]
+                        assert endswith(batch_shape, g_batch)
+
+                        if len(g_batch) < len(batch_shape):
+                            # Return batch average
+                            g = g / np.prod(
+                                batch_shape[:len(batch_shape)-len(g_batch)]
+                            )
+
+                        if i in layer_grads:
+                            layer_grads[i] = layer_grads[i] + g
+                        else:
+                            layer_grads[i] = g
+
+                if output is None:
+                    output = np.zeros(self.n_params, dtype=np.float32)
+                else:
+                    assert output.shape == (self.n_params,)
+
+                pos = 0
+                for layer in exec_order:
+                    if layer.n_local_params >= 1:
+                        layer_bpps[layer](
+                            layer_grads[layer],
+                            output=output[pos:pos+layer.n_params]
                         )
+                        pos += layer.n_params
+                assert pos == self.n_params
 
-            pos = 0
-            for a, bpp, g in zip(args, inp_bpps, inp_grads):
-                bpp(g, output=output[pos:pos+a.n_params])
-                pos += a.n_params
-            assert pos == self.n_params
+                return output
 
-            return output
-
-        return f_value, backprop
+            return layer_outs[self], backprop
 
     self = Layer(*args, evaluate=evaluate, shape=shape)
     return self
