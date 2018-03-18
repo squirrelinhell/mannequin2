@@ -203,7 +203,8 @@ def Function(*args, f, shape=None):
 
             for layer in exec_order:
                 out, bpp = layer.evaluate(
-                    layer_outs if len(layer.inputs) >= 1 else inps
+                    layer_outs if len(layer.inputs) >= 1 else inps,
+                    **(kwargs if layer == self else {})
                 )
                 layer_outs[layer] = out
                 layer_bpps[layer] = bpp

@@ -6,7 +6,8 @@ from mannequin.backprop import autograd
 
 class Discrete(object):
     def __init__(self, *, logits):
-        n = logits.n_outputs
+        assert len(logits.shape) == 1
+        n = logits.shape[0]
         rng = np.random.RandomState()
         eye = np.eye(n, dtype=np.float32)
 
@@ -36,10 +37,12 @@ class Discrete(object):
 
 class Gauss(object):
     def __init__(self, *, mean, logstd=None):
-        logstd = logstd or Params(mean.n_outputs)
+        assert len(mean.shape) == 1
+        logstd = logstd or Params(*mean.shape)
+        assert logstd.shape == mean.shape
 
         rng = np.random.RandomState()
-        const = -0.5 * mean.n_outputs * np.log(2.0 * np.pi)
+        const = -0.5 * mean.shape[0] * np.log(2.0 * np.pi)
 
         def sample(mean, logstd):
             noise = rng.randn(*mean.shape) * np.exp(logstd)
