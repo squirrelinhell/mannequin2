@@ -1,6 +1,11 @@
 
 import numpy as np
 
+def endswith(a, b):
+    if len(a) < len(b):
+        return False
+    return a[len(a)-len(b):] == b
+
 def autograd(f):
     import autograd
     import autograd.numpy as np
@@ -11,17 +16,35 @@ def add(a, b):
     ash, bsh = a.shape, b.shape
     if ash == bsh:
         return a + b, lambda g: (g, g)
-    elif len(ash) > len(bsh) and ash[len(ash)-len(bsh):] == bsh:
+    elif endswith(ash, bsh):
         return a + b, lambda g: (
             g,
             np.sum(g, axis=tuple(range(len(ash)-len(bsh))))
+        )
+    elif endswith(bsh, ash):
+        return a + b, lambda g: (
+            np.sum(g, axis=tuple(range(len(bsh)-len(ash)))),
+            g
         )
     else:
         raise ValueError("Invalid shapes: %s, %s" % (a.shape, b.shape))
 
 def multiply(a, b):
-    assert a.shape == b.shape
-    return a * b, lambda g: (g * b, g * a)
+    ash, bsh = a.shape, b.shape
+    if ash == bsh:
+        return a * b, lambda g: (g * b, g * a)
+    elif endswith(ash, bsh):
+        return a * b, lambda g: (
+            g * b,
+            np.sum(g * a, axis=tuple(range(len(ash)-len(bsh))))
+        )
+    elif endswith(bsh, ash):
+        return a * b, lambda g: (
+            np.sum(g * a, axis=tuple(range(len(bsh)-len(ash)))),
+            g * b
+        )
+    else:
+        raise ValueError("Invalid shapes: %s, %s" % (a.shape, b.shape))
 
 def matmul(a, b):
     assert len(a.shape) in (1, 2)
