@@ -174,86 +174,91 @@ class Function(Layer):
         if shape is None:
             shape = args[0].shape
 
-        def evaluate(inps, **kwargs):
-            if isinstance(inps, dict):
-                inps = [inps[a] for a in args]
+        def local_evaluate(inps, **kwargs):
+            inps = [inps[a] for a in args]
 
-                # Require correct shapes
-                for i, a in zip(inps, args):
-                    assert endswith(i.shape, a.shape)
+            # Require correct shapes
+            for i, a in zip(inps, args):
+                assert endswith(i.shape, a.shape)
 
-                f_value, f_backprop = f(*inps, **kwargs)
-                assert endswith(f_value.shape, shape)
-                f_value.setflags(write=False)
+            f_value, f_backprop = f(*inps, **kwargs)
+            assert endswith(f_value.shape, shape)
+            f_value.setflags(write=False)
 
-                return f_value, f_backprop
+            return f_value, f_backprop
 
-            else:
-                inps = np.asarray(inps, dtype=np.float32)
+        def evaluate(array, **kwargs):
+            array = np.asarray(array, dtype=np.float32)
+            layer_outs = {}
+            layer_bpps = {}
+
+            for layer in self.prerequisites:
+                if hasattr(layer, "local_evaluate"):
+                    out, bpp = layer.local_evaluate(layer_outs)
+                else:
+                    out, bpp = layer.evaluate(array)
+                layer_outs[layer] = out
+                layer_bpps[layer] = bpp
+
+            out, bpp = self.local_evaluate(layer_outs, **kwargs)
+            layer_outs[self] = out
+            layer_bpps[self] = bpp
+
+            def backprop(grad, *, output=None):
+                grad = np.asarray(grad, dtype=np.float32)
+                assert grad.shape == layer_outs[self].shape
+                batch_shape = grad.shape[:len(grad.shape)-len(shape)]
+
                 exec_order = self.prerequisites + (self,)
-                layer_outs = {}
-                layer_bpps = {}
+                layer_grads = {self: grad}
 
-                for layer in exec_order:
-                    out, bpp = layer.evaluate(
-                        layer_outs if len(layer.inputs) >= 1 else inps,
-                        **(kwargs if layer == self else {})
-                    )
-                    layer_outs[layer] = out
-                    layer_bpps[layer] = bpp
+                for layer in reversed(exec_order):
+                    if len(layer.inputs) <= 0:
+                        continue
 
-                def backprop(grad, *, output=None):
-                    grad = np.asarray(grad, dtype=np.float32)
-                    assert grad.shape == layer_outs[self].shape
-                    batch_shape = grad.shape[:len(grad.shape)-len(shape)]
+                    inp_grads = layer_bpps[layer](layer_grads[layer])
+                    del layer_grads[layer]
 
-                    layer_grads = {self: grad}
+                    assert isinstance(inp_grads, tuple)
+                    assert len(inp_grads) == len(layer.inputs)
 
-                    for layer in reversed(exec_order):
-                        if len(layer.inputs) <= 0:
-                            continue
+                    for g, i in zip(inp_grads, layer.inputs):
+                        assert g.shape == layer_outs[i].shape
 
-                        inp_grads = layer_bpps[layer](layer_grads[layer])
-                        del layer_grads[layer]
+                        g_batch = g.shape[:len(g.shape)-len(i.shape)]
+                        assert endswith(batch_shape, g_batch)
 
-                        assert isinstance(inp_grads, tuple)
-                        assert len(inp_grads) == len(layer.inputs)
-
-                        for g, i in zip(inp_grads, layer.inputs):
-                            assert g.shape == layer_outs[i].shape
-
-                            g_batch = g.shape[:len(g.shape)-len(i.shape)]
-                            assert endswith(batch_shape, g_batch)
-
-                            if len(g_batch) < len(batch_shape):
-                                # Return batch average
-                                g = g / np.prod(
-                                    batch_shape[:len(batch_shape)-len(g_batch)]
-                                )
-
-                            if i in layer_grads:
-                                layer_grads[i] = layer_grads[i] + g
-                            else:
-                                layer_grads[i] = g
-
-                    if output is None:
-                        output = np.zeros(self.n_params, dtype=np.float32)
-                    else:
-                        assert output.shape == (self.n_params,)
-
-                    pos = 0
-                    for layer in exec_order:
-                        if layer.n_local_params >= 1:
-                            layer_bpps[layer](
-                                layer_grads[layer],
-                                output=output[pos:pos+layer.n_params]
+                        if len(g_batch) < len(batch_shape):
+                            # Return batch average
+                            g = g / np.prod(
+                                batch_shape[:len(batch_shape)-len(g_batch)]
                             )
-                            pos += layer.n_params
-                    assert pos == self.n_params
 
-                    return output
+                        if i in layer_grads:
+                            layer_grads[i] = layer_grads[i] + g
+                        else:
+                            layer_grads[i] = g
 
-                return layer_outs[self], backprop
+                if output is None:
+                    output = np.zeros(self.n_params, dtype=np.float32)
+                else:
+                    assert output.shape == (self.n_params,)
+
+                pos = 0
+                for layer in exec_order:
+                    if layer.n_local_params >= 1:
+                        layer_bpps[layer](
+                            layer_grads[layer],
+                            output=output[pos:pos+layer.n_params]
+                        )
+                        pos += layer.n_params
+                assert pos == self.n_params
+
+                return output
+
+            return layer_outs[self], backprop
+
+        self.local_evaluate = local_evaluate
 
         super().__init__(*args, evaluate=evaluate, shape=shape)
 
