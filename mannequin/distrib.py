@@ -8,6 +8,7 @@ class Discrete(object):
     def __init__(self, *, logits):
         assert len(logits.shape) == 1
         n = logits.shape[0]
+
         rng = np.random.RandomState()
         eye = np.eye(n, dtype=np.float32)
 
@@ -39,11 +40,13 @@ class Discrete(object):
 class Gauss(object):
     def __init__(self, *, mean, logstd=None):
         assert len(mean.shape) == 1
+        n = mean.shape[0]
+
         logstd = logstd or Params(*mean.shape)
         assert logstd.shape == mean.shape
 
         rng = np.random.RandomState()
-        const = -0.5 * mean.shape[0] * np.log(2.0 * np.pi)
+        const = -0.5 * n * np.log(2.0 * np.pi)
 
         def sample(mean, logstd):
             noise = rng.randn(*mean.shape) * np.exp(logstd)
@@ -67,7 +70,7 @@ class Gauss(object):
 
         self.mean = mean
         self.logstd = logstd
-        self.sample = Function(mean, logstd, f=sample, shape=())
+        self.sample = Function(mean, logstd, f=sample, shape=(n,))
         self.logprob = Function(mean, logstd, f=logprob, shape=())
         self.n_params = self.logprob.n_params
         self.get_params = self.logprob.get_params

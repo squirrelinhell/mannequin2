@@ -121,7 +121,7 @@ class Const(Layer):
         value.setflags(write=False)
 
         def backprop(grad, output=None):
-            assert endswith(grad.shape, shape)
+            assert endswith(grad.shape, value.shape)
 
             if output is None:
                 return []
@@ -212,8 +212,20 @@ class Function(Layer):
                 exec_order = self.prerequisites + (self,)
                 layer_grads = {self: grad}
 
+                if output is None:
+                    output = np.zeros(self.n_params, dtype=np.float32)
+                else:
+                    assert output.shape == (self.n_params,)
+                pos = self.n_params
+
                 for layer in reversed(exec_order):
-                    if len(layer.inputs) <= 0:
+                    if not hasattr(layer, "local_evaluate"):
+                        pos -= layer.n_local_params
+                        layer_bpps[layer](
+                            layer_grads[layer],
+                            output=output[pos:pos+layer.n_local_params]
+                        )
+                        del layer_grads[layer]
                         continue
 
                     inp_grads = layer_bpps[layer](layer_grads[layer])
@@ -239,21 +251,7 @@ class Function(Layer):
                         else:
                             layer_grads[i] = g
 
-                if output is None:
-                    output = np.zeros(self.n_params, dtype=np.float32)
-                else:
-                    assert output.shape == (self.n_params,)
-
-                pos = 0
-                for layer in exec_order:
-                    if layer.n_local_params >= 1:
-                        layer_bpps[layer](
-                            layer_grads[layer],
-                            output=output[pos:pos+layer.n_params]
-                        )
-                        pos += layer.n_params
-                assert pos == self.n_params
-
+                assert pos == 0
                 return output
 
             return layer_outs[self], backprop
