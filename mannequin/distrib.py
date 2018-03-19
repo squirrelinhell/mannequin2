@@ -29,6 +29,7 @@ class Discrete(object):
                 lambda g: ((g.T * (eye[sample] - probs).T).T,)
             )
 
+        self.logits = logits
         self.sample = sample
         self.logprob = Function(logits, f=logprob, shape=())
         self.n_params = self.logprob.n_params
@@ -64,6 +65,8 @@ class Gauss(object):
                 axis=-1
             )
 
+        self.mean = mean
+        self.logstd = logstd
         self.sample = Function(mean, logstd, f=sample, shape=())
         self.logprob = Function(mean, logstd, f=logprob, shape=())
         self.n_params = self.logprob.n_params
