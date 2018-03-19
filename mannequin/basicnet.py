@@ -270,6 +270,9 @@ def Add(a, b):
 def Multiply(a, b):
     return Function(a, b, f=backprop.multiply)
 
+def Clip(inner, a, b):
+   return Function(inner, f=lambda v: backprop.clip(v, a=a, b=b))
+
 def Linear(inner, n_outputs, *, init=normed_columns):
     n_inputs, = inner.shape
     if not callable(init):

@@ -46,6 +46,12 @@ def multiply(a, b):
     else:
         raise ValueError("Invalid shapes: %s, %s" % (a.shape, b.shape))
 
+def clip(v, *, a, b):
+   multiplier = np.ones(v.shape)
+   multiplier[v < a] = 0.0
+   multiplier[v > b] = 0.0
+   return np.clip(v, a, b), lambda g: (g * multiplier,)
+
 def matmul(a, b):
     assert len(a.shape) in (1, 2)
     assert len(b.shape) == 2
