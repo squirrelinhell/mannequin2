@@ -1,11 +1,7 @@
 
 import numpy as np
+from mannequin import endswith
 import mannequin.backprop as backprop
-
-def endswith(a, b):
-    if len(a) < len(b):
-        return False
-    return a[len(a)-len(b):] == b
 
 class Layer(object):
     def __init__(self, *inputs, evaluate, shape, n_local_params=0,
@@ -57,6 +53,7 @@ class Layer(object):
                 return output
 
             def load_params(new_value):
+                new_value = np.asarray(new_value, dtype=np.float32)
                 assert new_value.shape == (n_params,)
 
                 pos = 0
@@ -109,7 +106,9 @@ class Input(Layer):
 
         def evaluate(array):
             array = np.asarray(array, dtype=np.float32)
-            assert endswith(array.shape, shape)
+            if not endswith(array.shape, shape):
+                raise ValueError("Input doesn't match shape "
+                    + str(shape))
             return array, backprop
 
         super().__init__(evaluate=evaluate, shape=shape)
@@ -135,7 +134,7 @@ class Const(Layer):
         super().__init__(evaluate=evaluate, shape=value.shape)
 
 class Params(Layer):
-    def __init__(self, *shape, init=np.zeros):
+    def __init__(self, *shape, init=lambda *s: np.zeros(s)):
         shape = tuple(max(1, int(s)) for s in shape)
         assert len(shape) >= 1
 
@@ -160,6 +159,7 @@ class Params(Layer):
                 return output
 
         def load(new_value):
+            new_value = np.asarray(new_value, dtype=np.float32)
             value.setflags(write=True)
             value[:] = new_value.reshape(shape)
             value.setflags(write=False)
@@ -182,7 +182,9 @@ class Function(Layer):
                 assert endswith(i.shape, a.shape)
 
             f_value, f_backprop = f(*inps, **kwargs)
-            assert endswith(f_value.shape, shape)
+            if not endswith(f_value.shape, shape):
+                raise ValueError("Output of '%s' doesn't match shape %s"
+                    % (f.__name__, shape))
             f_value.setflags(write=False)
 
             return f_value, f_backprop
@@ -270,17 +272,42 @@ def Add(a, b):
 def Multiply(a, b):
     return Function(a, b, f=backprop.multiply)
 
-def Clip(inner, a, b):
-   return Function(inner, f=lambda v: backprop.clip(v, a=a, b=b))
+def Reshape(inner, out_shape):
+    out_shape = np.zeros(inner.shape).reshape(out_shape).shape
 
-def Linear(inner, n_outputs, *, init=normed_columns):
-    n_inputs, = inner.shape
+    def f(v):
+        assert endswith(v.shape, inner.shape)
+        batch_shape = v.shape[:len(v.shape)-len(inner.shape)]
+        return (
+            np.reshape(v, batch_shape + out_shape),
+            lambda g: (np.reshape(g, v.shape),)
+        )
+
+    return Function(inner, f=f, shape=out_shape)
+
+def Linear(inner, *shape, init=normed_columns):
+    shape = tuple(max(1, int(s)) for s in shape)
+
+    if len(shape) > 1:
+        return Reshape(
+            Linear(inner, int(np.prod(shape)), init=init),
+            shape
+        )
+
+    if len(inner.shape) > 1:
+        inner = Reshape(inner, -1)
+
     if not callable(init):
         init = (lambda m: lambda *s: normed_columns(*s) * m)(float(init))
-    return Function(inner, Params(n_inputs, n_outputs, init=init),
-        f=backprop.matmul, shape=(n_outputs,))
 
-def Bias(inner, *, init=np.zeros):
+    return Function(
+        inner,
+        Params(inner.shape[0], shape[0], init=init),
+        f=backprop.matmul,
+        shape=shape
+    )
+
+def Bias(inner, *, init=lambda *s: np.zeros(s)):
     return Add(inner, Params(*inner.shape, init=init))
 
 def LReLU(inner, *, leak=0.1):

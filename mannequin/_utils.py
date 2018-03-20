@@ -1,6 +1,11 @@
 
 import numpy as np
 
+def endswith(a, b):
+    if len(a) < len(b):
+        return False
+    return a[len(a)-len(b):] == b
+
 class RunningMean(object):
     def __init__(self, shape=(), *, horizon=None):
         mean = np.zeros(shape, dtype=np.float64)

@@ -1,5 +1,6 @@
 
 from ._utils import (
+    endswith,
     RunningMean,
     RunningNormalize,
     discounted,

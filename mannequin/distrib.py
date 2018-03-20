@@ -1,6 +1,7 @@
 
 import numpy as np
 
+from mannequin import endswith
 from mannequin.basicnet import Params, Function
 from mannequin.backprop import autograd
 
@@ -39,22 +40,20 @@ class Discrete(object):
 
 class Gauss(object):
     def __init__(self, *, mean, logstd=None):
-        assert len(mean.shape) == 1
-        n = mean.shape[0]
-
         logstd = logstd or Params(*mean.shape)
         assert logstd.shape == mean.shape
 
         rng = np.random.RandomState()
-        const = -0.5 * n * np.log(2.0 * np.pi)
+        const = -0.5 * np.prod(mean.shape) * np.log(2.0 * np.pi)
+        squash_axes = tuple([-(i+1) for i in range(len(mean.shape))])
 
         def sample(mean, logstd):
             noise = rng.randn(*mean.shape) * np.exp(logstd)
             if mean.shape == logstd.shape:
                 return mean + noise, lambda g: (g, g * noise)
-            elif mean.shape[1:] == logstd.shape:
-                return (mean + noise,
-                    lambda g: (g, np.sum(g * noise, axis=0)))
+            elif endswith(mean.shape, logstd.shape):
+                return mean + noise, lambda g: (g, np.sum(g * noise,
+                    axis=tuple(range(len(mean.shape)-len(logstd.shape)))))
             else:
                 raise ValueError("Invalid shapes: %s, %s"
                     % (mean.shape, logstd.shape))
@@ -65,12 +64,12 @@ class Gauss(object):
             return const - np.sum(
                 logstd + 0.5 *
                     np.square((sample - mean) / np.exp(logstd)),
-                axis=-1
+                axis=squash_axes
             )
 
         self.mean = mean
         self.logstd = logstd
-        self.sample = Function(mean, logstd, f=sample, shape=(n,))
+        self.sample = Function(mean, logstd, f=sample, shape=mean.shape)
         self.logprob = Function(mean, logstd, f=logprob, shape=())
         self.n_params = self.logprob.n_params
         self.get_params = self.logprob.get_params

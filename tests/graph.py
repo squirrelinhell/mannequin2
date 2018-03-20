@@ -1,7 +1,6 @@
 
 import numpy as np
 from mannequin.basicnet import *
-from mannequin.backprop import add
 from test_setup import timer
 
 def PrintLayer(inner):

@@ -10,7 +10,7 @@ def plot_function_2d(function, *,
         file_name=None):
     coords = (np.mgrid[0:grid+1,0:grid+1].reshape(2,-1).T / grid
         * [xlim[1] - xlim[0], ylim[1] - ylim[0]] + [xlim[0], ylim[0]])
-    values = np.array([float(function(c)) for c in coords])
+    values = np.array([float(function(*c)) for c in coords])
     values = values.reshape((grid+1, grid+1))
     plt.clf()
     plt.imshow(

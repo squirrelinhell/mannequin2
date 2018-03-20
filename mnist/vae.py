@@ -8,7 +8,7 @@ sys.path.append("..")
 from mannequin import bar
 from mannequin.backprop import autograd
 from mannequin.distrib import Gauss
-from mannequin.basicnet import Input, Affine, Tanh, Function, Clip
+from mannequin.basicnet import Input, Affine, Tanh, Function
 
 def DKLUninormal(*, mean, logstd):
     @autograd
@@ -23,10 +23,20 @@ def DKLUninormal(*, mean, logstd):
 
     return Function(mean, logstd, f=dkl, shape=())
 
-def run():
-    train_x = np.load("__mnist.npz")['train_x']
+def Clip(inner, a, b):
+    def clip(v):
+       def bpp(g):
+           g = np.array(g)
+           g[np.logical_and(v < a, g < 0.0)] = 0.0
+           g[np.logical_and(v > b, g > 0.0)] = 0.0
+           return (g,)
+       return np.clip(v, a, b), bpp
+    return Function(inner, f=clip)
 
-    encoder = Input(28*28)
+def run():
+    train_x = np.load("__mnist.npz")['train_x'].reshape(-1, 28, 28)
+
+    encoder = Input(28, 28)
     encoder = Tanh(Affine(encoder, 256))
     encoder = Tanh(Affine(encoder, 256))
     encoder = Gauss(
@@ -40,8 +50,8 @@ def run():
     decoder = Tanh(Affine(decoder, 256))
     decoder = Tanh(Affine(decoder, 256))
     decoder = Gauss(
-        mean=Affine(decoder, 28*28, init=0.1),
-        logstd=Clip(Affine(decoder, 28*28), -6.0, 0.0)
+        mean=Affine(decoder, 28, 28, init=0.1),
+        logstd=Clip(Affine(decoder, 28, 28), -6.0, 0.0)
     )
 
     momentum = 0.0
@@ -67,9 +77,9 @@ def run():
 
         if i % 100 == 99:
             fig, plots = plt.subplots(3, 2)
-            for inp, col in zip(inps, plots):
-                for img, row in zip([inp, decoder.mean(inp)], col):
-                    row.imshow(img.reshape(28,28), cmap="gray")
+            for inp, pair in zip(inps, plots):
+                for img, plot in zip([inp, decoder.mean(inp)], pair):
+                    plot.imshow(img, cmap="gray")
             fig.set_size_inches(4, 6)
             fig.savefig("step_%05d.png"%(i+1), dpi=100)
             plt.close(fig)
