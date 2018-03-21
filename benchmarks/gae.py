@@ -5,16 +5,31 @@ import numpy as np
 sys.path.append("..")
 
 def gae(env, policy, *, gam=0.99, lam=0.95):
-    from mannequin import Trajectory, SimplePredictor
+    from mannequin import Trajectory, Adam
+    from mannequin.basicnet import Input, Affine, Tanh
     from mannequin.gym import one_step
+
+    def SimplePredictor(in_size, out_size):
+        model = Input(in_size)
+        for _ in range(2):
+            model = Tanh(Affine(model, 64))
+        model = Affine(model, out_size, init=0.1)
+
+        opt = Adam(model.get_params(), horizon=10, lr=0.003)
+
+        def sgd_step(inps, lbls):
+            outs, backprop = model.evaluate(inps)
+            opt.apply_gradient(backprop(lbls - outs))
+            model.load_params(opt.get_value())
+
+        model.sgd_step = sgd_step
+        return model
 
     rng = np.random.RandomState()
     hist = []
 
-    # Assuming a continuous observation space
-    value_predictor = SimplePredictor(
-        env.observation_space.low.size
-    )
+    # Assume continuous observation space
+    value_predictor = SimplePredictor(env.observation_space.low.size, 1)
 
     def get_chunk():
         nonlocal hist
@@ -25,9 +40,9 @@ def gae(env, policy, *, gam=0.99, lam=0.95):
             hist.append(one_step(env, policy))
 
         # Estimate value function for each state
-        value = value_predictor.predict(
+        value = value_predictor(
             [hist[i][0] for i in range(length + 1)]
-        )
+        ).reshape(-1)
 
         # Compute advantages
         adv = np.zeros(length + 1, dtype=np.float32)
@@ -49,10 +64,13 @@ def gae(env, policy, *, gam=0.99, lam=0.95):
         hist = hist[length:]
 
         # Train the value predictor before returning
-        learn_traj = Trajectory(traj.o, (adv + value)[:length])
+        learn_traj = Trajectory(
+            traj.o,
+            (adv + value)[:length].reshape(-1, 1)
+        )
         for _ in range(300):
-            idx = rng.randint(len(learn_traj), size=64)
-            value_predictor.sgd_step(learn_traj[idx], lr=0.003)
+            batch = learn_traj[rng.randint(len(learn_traj), size=64)]
+            value_predictor.sgd_step(batch.o, batch.a)
 
         return traj
 

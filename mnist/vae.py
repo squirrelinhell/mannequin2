@@ -34,7 +34,7 @@ def Clip(inner, a, b):
     return Function(inner, f=clip)
 
 def run():
-    train_x = np.load("__mnist.npz")['train_x'].reshape(-1, 28, 28)
+    train_x = np.load("__mnist.npz")['train_x']
 
     encoder = Input(28, 28)
     encoder = Tanh(Affine(encoder, 256))

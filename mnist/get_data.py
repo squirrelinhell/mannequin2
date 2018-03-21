@@ -17,9 +17,9 @@ def run():
 
     np.savez_compressed(
         "__mnist.npz",
-        train_x=data.train.images,
+        train_x=data.train.images.reshape(-1, 28, 28),
         train_y=data.train.labels,
-        test_x=data.test.images,
+        test_x=data.test.images.reshape(-1, 28, 28),
         test_y=data.test.labels
     )
 
