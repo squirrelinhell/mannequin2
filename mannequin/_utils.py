@@ -6,85 +6,6 @@ def endswith(a, b):
         return False
     return a[len(a)-len(b):] == b
 
-class RunningMean(object):
-    def __init__(self, shape=(), *, horizon=None):
-        mean = np.zeros(shape, dtype=np.float64)
-        total_weight = 0.0
-
-        def update(values, *, weight=1.0):
-            nonlocal mean, total_weight
-
-            values = np.asarray(values, dtype=np.float64)
-            values = values.reshape(shape)
-
-            weight = float(weight)
-            assert weight >= 0.0
-
-            if horizon is not None:
-                total_weight *= np.power(
-                    1.0 - 1.0 / float(horizon),
-                    weight
-                )
-
-            total_weight += weight
-            mean += (weight / total_weight) * (values - mean)
-
-        self.get = lambda: np.array(mean)
-        self.update = update
-
-    def __call__(self, values, **kwargs):
-        self.update(values, **kwargs)
-        return self.get()
-
-class RunningNormalize(object):
-    def __init__(self, shape=(), *, horizon=None):
-        r_mean = RunningMean(shape=shape, horizon=horizon)
-        r_var = RunningMean(shape=shape, horizon=horizon)
-        n_samples = 0
-
-        def update(value):
-            nonlocal n_samples
-
-            value = np.array(value, dtype=np.float64)
-            value = value.reshape((-1,) + shape)
-
-            d1 = value - r_mean.get()
-            d2 = value - r_mean(np.mean(value, axis=0))
-
-            if n_samples >= 1:
-                r_var.update(np.mean(np.multiply(d1, d2), axis=0))
-            elif len(value) >= 2:
-                weight = (len(value) - 1.0) / len(value)
-                r_var.update(
-                    np.mean(np.multiply(d1, d2), axis=0) / weight,
-                    weight=weight
-                )
-
-            n_samples += len(value)
-
-        def apply(value):
-            if n_samples < 2:
-                return np.zeros_like(value, dtype=np.float64)
-            return (
-                (value - r_mean.get())
-                / np.maximum(1e-8, np.sqrt(r_var.get()))
-            )
-
-        def get_var():
-            if n_samples < 2:
-                return np.ones(shape, dtype=np.float64)
-            return r_var.get()
-
-        self.update = update
-        self.apply = apply
-        self.get_mean = lambda: r_mean.get()
-        self.get_var = get_var
-        self.get_std = lambda: np.sqrt(get_var())
-
-    def __call__(self, value):
-        self.update(value)
-        return self.apply(value)
-
 def discounted(values, *, horizon):
     step = 1.0 / float(horizon)
     assert (step > 1e-6) and (step < 1.0)
@@ -123,3 +44,30 @@ def bar(value, max_value=100.0, *, length=50):
     fmt_len = len("-%.2f" % max_value)
     fmt = ("%%%d.2f " % fmt_len) % value
     return fmt[0:fmt_len+1] + "[" + bar + "]"
+
+def plot_function_2d(function, *,
+        xlim=(-2.0, 2.0),
+        ylim=(-2.0, 2.0),
+        vlim=(None, None),
+        grid=20,
+        file_name=None):
+    import matplotlib.pyplot as plt
+    coords = (np.mgrid[0:grid+1,0:grid+1].reshape(2,-1).T / grid
+        * [xlim[1] - xlim[0], ylim[1] - ylim[0]] + [xlim[0], ylim[0]])
+    values = np.array([float(function(*c)) for c in coords])
+    values = values.reshape((grid+1, grid+1))
+    plt.clf()
+    plt.imshow(
+        values.T[::-1,:], vmin=vlim[0], vmax=vlim[1],
+        zorder=0, aspect="auto",
+        cmap="inferno", interpolation="bicubic",
+        extent=[xlim[0], xlim[1], xlim[0], ylim[1]]
+    )
+    plt.colorbar()
+    if file_name is None:
+        plt.ion()
+        plt.show()
+        plt.pause(0.0001)
+    else:
+        plt.gcf().set_size_inches(10, 8)
+        plt.gcf().savefig(file_name, dpi=100)

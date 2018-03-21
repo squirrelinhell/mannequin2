@@ -41,7 +41,10 @@ class Trajectory(object):
                 "rewards": rewards
             }
             for v in kwargs:
-                data[v] = kwargs[v](data[v])
+                if callable(kwargs[v]):
+                    data[v] = kwargs[v](data[v])
+                else:
+                    data[v] = kwargs[v]
             return Trajectory(**data)
 
         def discounted(*, horizon):
